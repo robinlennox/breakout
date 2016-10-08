@@ -33,7 +33,7 @@ function main {
     for installpip in pxssh requests netaddr pexpect
     do
         echo "Installing "$installpip
-        sudo pip install $installpkg > /dev/null
+        sudo pip install $installpip > /dev/null
     done
 
     #Install Directory
