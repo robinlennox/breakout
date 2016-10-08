@@ -30,7 +30,7 @@ function main {
     done
 
     # Install PIP #
-    for installpip in pxssh requests netaddr pexpect
+    for installpip in requests netaddr pexpect
     do
         echo "Installing "$installpip
         sudo pip install $installpip > /dev/null
