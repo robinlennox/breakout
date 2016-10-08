@@ -38,8 +38,8 @@ function main {
 
     #Install Directory
     BREAKOUT_DIRECTORY='/opt/breakout'
-    mkdir ${BREAKOUT_DIRECTORY}
-    git clone https://github.com/robinlennox/breakout ${BREAKOUT_DIRECTORY}
+    sudo mkdir ${BREAKOUT_DIRECTORY}
+    sudo git clone https://github.com/robinlennox/breakout ${BREAKOUT_DIRECTORY}
 
     printf "${RED}"
     echo '        ____                 _               _    '
