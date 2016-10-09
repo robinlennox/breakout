@@ -152,7 +152,7 @@ def callback():
                     if plugin.CallBack.checkTunnel('10.0.0.1',22):
                         print G+"[+] ICMP Tunnel Created!"+W
                         print B+"[-] An ICMP Tunnel is not as fast as a TCP Tunnel"+W
-                        successMessage("10.0.0.1",8123)
+                        successMessage("10.0.0.1",22)
                         status = True
                     else:
                         print R+"[x] ICMP Enabled but unable to create ICMP Tunnel"+W
