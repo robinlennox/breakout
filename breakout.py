@@ -30,7 +30,7 @@ def parse_args():
     parser = argparse.ArgumentParser(epilog = '\tExample: \r\nsudo python '+sys.argv[0]+" -c 1.2.3.4")
     parser.error = parser_error
     parser._optionals.title = "OPTIONS"
-    parser.add_argument('-A', '--aggressive', help='Aggressive scan, all',nargs='?', default=False)
+    parser.add_argument('-a', '--aggressive', help='Aggressive scan, all',nargs='?', default=False)
     parser.add_argument('-c', '--callback', help='Enable call back to server',nargs='?', default='')
     parser.add_argument('-n', '--nameserver', help='Provide Nameserver for DNS callback',nargs='?', default='')
     parser.add_argument('-p', '--password', help='Password used for DNS callback',nargs='?', default='')
