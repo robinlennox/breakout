@@ -1,4 +1,7 @@
 #!/bin/bash
+#description            :This script will install the server prerequisites.
+#author                 :Robin Lennox
+#==============================================================================
 
 function main {
     # Use colors, but only if connected to a terminal, and that terminal
