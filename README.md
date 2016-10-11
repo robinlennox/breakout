@@ -6,7 +6,7 @@ Breakout was built to allow a device to get access to the internet on a restrict
 
 This tools could be used on a device which is dropped on a client's network, then automatically attempts to breakout to the internet. If successful, the device can be remotely managed and used for reconnaissance.
 
-Alternatively, you could use it to circumvent an organisations proxy or Wifi Paywalls!
+Alternatively, you could use it to circumvent an organisations proxy or Wi-Fi Paywalls!
 
 ### Tested On
 Ubuntu 16.04 Server
@@ -33,7 +33,7 @@ sudo python breakout.py -h
 #### Examples
 Find paths to breakout to the internet.
 ```sh
-sudo python breakout.py                                                              
+sudo python breakout.py
 ```
 Callback to server on the internet.
 ```sh
@@ -41,11 +41,11 @@ sudo python breakout.py -c 1.2.3.4
 ```
 Use aggressive mode.
 ```sh
-sudo python breakout.py -A
+sudo python breakout.py -a
 ```
-Callback to server with DNS Tunnel details.
+Auto callback to server with DNS Tunnel details.
 ```
-sudo python breakout.py -c 1.2.3.4 -p breakout -n tunnel.mywebsite.com -v     
+sudo python breakout.py -c 1.2.3.4 -p breakout -n tunnel.mywebsite.com -t
 ```
 
 ## Installation
@@ -53,20 +53,30 @@ Breakout is installed by running the following commands in your terminal.
 
 ### On Server
 
-```shell
-bash -c "$(wget https://raw.githubusercontent.com/robinlennox/breakout/master/lib/setup/install_server.sh -O -)"
+```sh
+sudo bash -c "$(wget https://raw.githubusercontent.com/robinlennox/breakout/master/lib/setup/install_server.sh -O -)"
 ```
 
 ### On Client
-```shell
-bash -c "$(wget https://raw.githubusercontent.com/robinlennox/breakout/master/lib/setup/install_client.sh -O -)"
+```sh
+sudo bash -c "$(wget https://raw.githubusercontent.com/robinlennox/breakout/master/lib/setup/install_client.sh -O -)"
+```
+
+### Setup Auto Tunnel
+The following will automatically setup a unique account and SSH keys on both the client and the server waiting for the callback which will be used to create the tunnel automatically.
+```sh
+wget https://raw.githubusercontent.com/robinlennox/breakout/master/lib/setup/install_client.sh -O install_client.sh; sudo bash install_client.sh <CALLBACK_USER>@<CALLBACK_IP> <CALLBACK_PORT>; rm install_client.sh
+```
+An example would be:
+```sh
+wget https://raw.githubusercontent.com/robinlennox/breakout/master/lib/setup/install_client.sh -O install_client.sh; sudo bash install_client.sh root@1.2.3.4 22; rm install_client.sh
 ```
 
 ### Setting up DNS Tunnel
 Two DNS Records need to be created. It doesn't matter about the sames, however the FQDN which the NS resolves to much match the A record name, in this instance tunnel.
 
 ```
-iodine      IN  NS  tunnel.mywebsite.om.
+iodine      IN  NS  tunnel.mywebsite.com.
 tunnel      IN  A   1.2.3.4
 ```
 
