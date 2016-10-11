@@ -52,6 +52,11 @@ def checkTunnel(ipAddr,portNumber):
 	try:
 		testConn = s.login (ipAddr, 'myusername', 'mypassword', port=portNumber,auto_prompt_reset=False)
 		s.close()
+		if testConn:
+			return True
+		else:
+			print failedMessage
+			return False
 		# Should never get here
 		#print s.login (ipAddr, 'myusername', 'mypassword', auto_prompt_reset=False)
 		#print "failedMessage"
