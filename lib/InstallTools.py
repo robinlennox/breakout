@@ -4,13 +4,14 @@
 import os
 import shutil
 from lib.layout import *
+from lib.CheckInternet import *
 
 #Import Colour Scheme
 G,Y,B,R,W = colour()
 
 def gitSetup(makeCommand,checkFile,installName,dirName,remoteURL,verbose,):
     # Check if DIR Exist or not empty
-    if not os.path.isdir(dirName):
+    if not os.path.isfile(checkFile) and not os.path.isdir(dirName):
         os.mkdir(dirName)
         return gitClone(makeCommand,installName,dirName,remoteURL,)
     elif len(os.listdir(dirName)) == 1 or not os.path.isfile(checkFile) :
@@ -22,10 +23,15 @@ def gitSetup(makeCommand,checkFile,installName,dirName,remoteURL,verbose,):
         return True
 
 def gitClone(makeCommand,installName,dirName,remoteURL,):
-    os.system('git clone %s %s > /dev/null 2>&1' %(remoteURL, dirName))
-    os.system('cd %s; %s' %(dirName,makeCommand))
-    print G+"[+] Cloned Repo for %s" %(installName)+W
-    return True
+    try:
+        if internetStatus():
+            os.system('git clone %s %s > /dev/null 2>&1' %(remoteURL, dirName))
+            if os.path.isdir(dirName):
+                os.system('cd %s; %s' %(dirName,makeCommand))
+                print G+"[+] Cloned Repo for %s" %(installName)+W
+                return True
+    except:
+        pass
 
 def checkTools(verbose):
     installName = "ICMP Tunnel"
@@ -42,4 +48,4 @@ def checkTools(verbose):
     remoteURL = "https://github.com/yarrick/iodine.git"
     makeCommand = "sudo make > /dev/null 2>&1; sudo make install > /dev/null 2>&1"
     if not gitSetup(makeCommand,checkFile,installName, dirName,remoteURL,verbose,):
-        sys.exit(R+'[!] Missing Tool %s\n' %( installName )+W)
+        sys.exit(R+'[!] Missing Tool %s and unable to download\n' %( installName )+W)
