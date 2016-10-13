@@ -72,6 +72,12 @@ An example would be:
 wget https://raw.githubusercontent.com/robinlennox/breakout/master/lib/setup/install_client.sh -O install_client.sh; sudo bash install_client.sh root@1.2.3.4 22; rm install_client.sh
 ```
 
+### Autorun on client
+If you want breakout to autorun, set the command you use to create the tunnel to crontab. An example command is below:
+```sh
+echo "*/1 * * * * root python /opt/breakout/breakout.py -c 1.2.3.4 -p breakout -n tunnel.mywebsite.com -t > /dev/null 2>&1" | sudo tee -a /etc/crontab
+```
+
 ### Setting up DNS Tunnel
 Two DNS Records need to be created. It doesn't matter about the sames, however the FQDN which the NS resolves to much match the A record name, in this instance tunnel.
 
