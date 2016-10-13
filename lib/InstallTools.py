@@ -11,11 +11,12 @@ G,Y,B,R,W = colour()
 
 def gitSetup(makeCommand,checkFile,installName,dirName,remoteURL,verbose,):
     # Check if DIR Exist or not empty
-    if not os.path.isfile(checkFile) and not os.path.isdir(dirName):
+    if not os.path.isfile(checkFile):
+        try:
+            shutil.rmtree(dirName)
+        except:
+            pass
         os.mkdir(dirName)
-        return gitClone(makeCommand,installName,dirName,remoteURL,)
-    elif len(os.listdir(dirName)) == 1 or not os.path.isfile(checkFile) :
-        shutil.rmtree(dirName)
         return gitClone(makeCommand,installName,dirName,remoteURL,)
     else:
         if verbose:
