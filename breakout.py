@@ -3,6 +3,7 @@
 
 import argparse
 import shutil
+import subprocess
 import sys
 import time
 
@@ -78,7 +79,6 @@ def args_check():
             for line in passwd.splitlines():
                     if "sshuser" in line:
                         sshuser=line.split(':')[0]
-                        print sshuser
         else:
             print R+"[x] Error: No sshuser!"+W
             print R+"[x] This needs to be setup for the auto tunnel to work"+W
@@ -135,6 +135,27 @@ def successMessage(ipAddr,port):
     print W+"[!] Port forward using: ssh -f -N -D 8123 root@%s -p%s" % (ipAddr,port,)+W
     print W+"[!] Check it's working using: curl --proxy socks5h://localhost:8123 http://google.com"+W
     print W+"------------------------------"+W
+
+def checkSSHStatus():
+    checkSSHFile = '/opt/breakout/lib/checkSSH.sh'
+    if os.path.isfile(checkSSHFile):
+        with open(checkSSHFile) as f:
+            for line in f:
+                if str(re.findall(r"(?<=sshUser=')(.*)(?=')",line))[2:-2]:
+                    username = str(re.findall(r"(?<=sshUser=')(.*)(?=')",line))[2:-2]
+                
+                if str(re.findall(r"(?<=callbackIP=')(.*)(?=')",line))[2:-2]:
+                    ip = str(re.findall(r"(?<=callbackIP=')(.*)(?=')",line))[2:-2]
+                
+                if str(re.findall(r"(?<=callbackPort=')(.*)(?=')",line))[2:-2]:
+                    port = int(str(re.findall(r"(?<=callbackPort=')(.*)(?=')",line))[2:-2])
+
+        print "[*] Check SSH port %s is open on %s" % (port, ip,)
+        if not openPort(port, ip) or not checkTunnel(ip,port):
+            res = subprocess.check_output(["sudo", "apt"])
+            return False
+    else:
+        return False
 
 def callback():
     if callbackIP:
@@ -233,35 +254,38 @@ def main():
     if tunnel:
         print B+"[-] Auto Tunnel is enabled"+W
 
-    callbackPort=22
-    tunnelIP=callbackIP
-    tunnelPort=callbackPort
-    if openPort(callbackPort,callbackIP) and checkTunnel(callbackIP,callbackPort):
-        # Quick check for 22
-        successMessage(callbackIP,callbackPort)
+    if checkSSHStatus():
+        print G+"[+] Tunnel already open and working"+W
     else:
-        check_ports()
+        callbackPort=22
+        tunnelIP=callbackIP
+        tunnelPort=callbackPort
+        if openPort(callbackPort,callbackIP) and checkTunnel(callbackIP,callbackPort):
+            # Quick check for 22
+            successMessage(callbackIP,callbackPort)
+        else:
+            check_ports()
 
-        # Try incase the nothing returned as there is no possible tunnel
-        try:
-            tunnelIP,tunnelPort=callback()
-        except:
-            print R+'[!] Tunnel not possible, as no posible tunnels to the callback server could be found\n'+W
-            tunnel = False
-            pass
+            # Try incase the nothing returned as there is no possible tunnel
+            try:
+                tunnelIP,tunnelPort=callback()
+            except:
+                print R+'[!] Tunnel not possible, as no posible tunnels to the callback server could be found\n'+W
+                tunnel = False
+                pass
 
-    if tunnel:
-        print G+"[+] Setting up remote tunnel back to this device"+W
-        PWD=os.path.dirname(os.path.realpath(__file__))
-        checkSSHLOC=PWD+'/lib/checkSSH.sh'
-        shutil.copy(PWD+'/lib/checkSSH.bak', checkSSHLOC)
-        replaceText(checkSSHLOC,'SET_IP',tunnelIP)
-        replaceText(checkSSHLOC,'SET_PORT',tunnelPort)
-        replaceText(checkSSHLOC,'SET_USER',sshuser)
-        if checkSSHLOC not in open('/etc/crontab').read():
-            with open('/etc/crontab', "a") as file:
-                print G+"[+] Added SSH to try every minute in /etc/crontab"+W
-                file.write("*/1 * * * * root bash %s > /dev/null 2>&1 \n" %(checkSSHLOC))
+        if tunnel:
+            print G+"[+] Setting up remote tunnel back to this device"+W
+            PWD=os.path.dirname(os.path.realpath(__file__))
+            checkSSHLOC=PWD+'/lib/checkSSH.sh'
+            shutil.copy(PWD+'/lib/checkSSH.bak', checkSSHLOC)
+            replaceText(checkSSHLOC,'SET_IP',tunnelIP)
+            replaceText(checkSSHLOC,'SET_PORT',tunnelPort)
+            replaceText(checkSSHLOC,'SET_USER',sshuser)
+            if checkSSHLOC not in open('/etc/crontab').read():
+                with open('/etc/crontab', "a") as file:
+                    print G+"[+] Added SSH to try every minute in /etc/crontab"+W
+                    file.write("*/1 * * * * root bash %s > /dev/null 2>&1 \n" %(checkSSHLOC))
     
     if recon:
         startRecon()
