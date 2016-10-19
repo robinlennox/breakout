@@ -26,7 +26,7 @@ function setup {
     fi
     
     # Install PKG #
-    for installpkg in git build-essential libz-dev python-pip python-scapy tcpdump
+    for installpkg in git build-essential libz-dev python-pip python-scapy tcpdump dnsutils
     do
         echo "Installing "$installpkg
         sudo apt-get -y install $installpkg > /dev/null
