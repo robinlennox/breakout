@@ -8,6 +8,7 @@ randomPort=$(shuf -i 2000-65000 -n 1)
 sshUser='SET_USER'
 callbackIP='SET_IP'
 callbackPort='SET_PORT'
+tunnelType='TUNNEL_TYPE'
 checkSSHTunnel=$(sudo netstat -tnpa | grep 'ESTABLISHED.*ssh' | grep ${callbackIP})
 
 if [ -z "${checkSSHTunnel}" ]; then

