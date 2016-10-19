@@ -36,7 +36,7 @@ function setup {
     for installpip in requests netaddr pexpect
     do
         echo "Installing "$installpip
-        sudo pip install $installpip > /dev/null
+        sudo -H pip install $installpip > /dev/null
     done
 
     #Install Directory
