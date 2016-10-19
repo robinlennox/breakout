@@ -49,42 +49,7 @@ sudo python breakout.py -c 1.2.3.4 -p breakout -n tunnel.mywebsite.com -t
 ```
 
 ## Installation
-Breakout is installed by running the following commands in your terminal.
-
-### On Server
-
-```sh
-sudo bash -c "$(wget https://raw.githubusercontent.com/robinlennox/breakout/master/lib/setup/install_server.sh -O -)"
-```
-
-### On Client
-```sh
-sudo bash -c "$(wget https://raw.githubusercontent.com/robinlennox/breakout/master/lib/setup/install_client.sh -O -)"
-```
-
-### Setup Auto Tunnel
-The following will automatically setup a unique account and SSH keys on both the client and the server waiting for the callback which will be used to create the tunnel automatically.
-```sh
-wget https://raw.githubusercontent.com/robinlennox/breakout/master/lib/setup/install_client.sh -O install_client.sh; sudo bash install_client.sh <CALLBACK_USER>@<CALLBACK_IP> <CALLBACK_PORT> "<DROP_LOCATION>"; rm install_client.sh
-```
-An example would be:
-```sh
-wget https://raw.githubusercontent.com/robinlennox/breakout/master/lib/setup/install_client.sh -O install_client.sh; sudo bash install_client.sh root@1.2.3.4 22 "Dropped at Office 123"; rm install_client.sh
-```
-
-### Autorun on client
-If you want breakout to autorun, set the command you use to create the tunnel to crontab. An example command is below:
-```sh
-echo "*/1 * * * * root python /opt/breakout/breakout.py -c 1.2.3.4 -p breakout -n tunnel.mywebsite.com -t > /dev/null 2>&1" | sudo tee -a /etc/crontab
-```
-
-### Setting up DNS Tunnel
-Two DNS Records need to be created. It doesn't matter about the sames, however the FQDN which the NS resolves to much match the A record name, in this instance tunnel.
-
-```
-iodine      IN  NS  tunnel.mywebsite.com.
-tunnel      IN  A   1.2.3.4
-```
+Instructions on how to setup Breakout can be found on the wiki [installation](https://github.com/robinlennox/breakout/wiki/Installation) page.
 
 ### Speed of Tunnels
 This is based of a quick test I performed over Wifi.
