@@ -84,7 +84,7 @@ def traceroute_port_check(portNumber):
                 break
         else:
             #print ip_validate(reply.src)
-            if check_count != 1 and ip_validate(reply.src) is True:
+            if check_count != 1 and ip_validate(reply.src) is True and not reply.flags:
                 openPorts.append(str(portNumber))
                 quitscan += 1
                 check_count += 1
