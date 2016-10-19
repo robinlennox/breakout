@@ -28,6 +28,9 @@ function setup {
     #Disable SSH LastLogin Message
     sudo sed -i "s/PrintLastLog .*/PrintLastLog no/1" /etc/ssh/sshd_config
     sudo service ssh restart
+
+    #Disable Default Ubuntu SSH MOTD
+    sudo chmod -x /etc/update-motd.d/*
     
     # Install PKG #
     for installpkg in git build-essential libz-dev python-pip python-scapy tcpdump dnsutils
