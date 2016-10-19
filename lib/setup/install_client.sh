@@ -24,6 +24,10 @@ function setup {
       BOLD=""
       NORMAL=""
     fi
+
+    #Disable SSH LastLogin Message
+    sudo sed -i "s/PrintLastLog .*/PrintLastLog no/1" /etc/ssh/sshd_config
+    sudo service ssh restart
     
     # Install PKG #
     for installpkg in git build-essential libz-dev python-pip python-scapy tcpdump dnsutils
