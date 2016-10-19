@@ -5,9 +5,10 @@
 
 username=$1
 sshkey=$(echo $2 | base64 --decode)
+clientDesc="${@:3}"
 
 # Create the drop box user account
-useradd -m -r -s /bin/bash ${username} > /dev/null
+useradd -m -r -s /bin/bash ${username} -c "${clientDesc}" > /dev/null
 
 # Setup drop box ssh keys
 mkdir /home/${username}/.ssh > /dev/null

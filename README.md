@@ -65,11 +65,11 @@ sudo bash -c "$(wget https://raw.githubusercontent.com/robinlennox/breakout/mast
 ### Setup Auto Tunnel
 The following will automatically setup a unique account and SSH keys on both the client and the server waiting for the callback which will be used to create the tunnel automatically.
 ```sh
-wget https://raw.githubusercontent.com/robinlennox/breakout/master/lib/setup/install_client.sh -O install_client.sh; sudo bash install_client.sh <CALLBACK_USER>@<CALLBACK_IP> <CALLBACK_PORT>; rm install_client.sh
+wget https://raw.githubusercontent.com/robinlennox/breakout/master/lib/setup/install_client.sh -O install_client.sh; sudo bash install_client.sh <CALLBACK_USER>@<CALLBACK_IP> <CALLBACK_PORT> "<DROP_LOCATION>"; rm install_client.sh
 ```
 An example would be:
 ```sh
-wget https://raw.githubusercontent.com/robinlennox/breakout/master/lib/setup/install_client.sh -O install_client.sh; sudo bash install_client.sh root@1.2.3.4 22; rm install_client.sh
+wget https://raw.githubusercontent.com/robinlennox/breakout/master/lib/setup/install_client.sh -O install_client.sh; sudo bash install_client.sh root@1.2.3.4 22 "Dropped at Office 123"; rm install_client.sh
 ```
 
 ### Autorun on client

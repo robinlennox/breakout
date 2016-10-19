@@ -56,8 +56,6 @@ function setup {
     printf "${NORMAL}"
 }
 
-#!/bin/bash
-
 function createUsername {
   duplicateUser=0
   # Make user doesn't exist
@@ -100,7 +98,7 @@ function setupCnCUser {
     addUser
     echo "[+] Creating user ${username} remotely"
     wget https://raw.githubusercontent.com/robinlennox/breakout/master/lib/setup/addUserRemote.sh -O addUserRemote.sh
-    ssh ${sshLogin} -p${sshPort} "bash -s" < addUserRemote.sh ${username} "${sshPub}"
+    ssh ${sshLogin} -p${sshPort} "bash -s" < addUserRemote.sh ${username} "${sshPub}" "${clientDesc}"
     rm addUserRemote.sh
   fi
 }
@@ -115,9 +113,10 @@ fi
 checkSSHUser=$(cat /etc/passwd | grep -o "sshuser")
 sshLogin=$1
 sshPort=$2
-if [ -z "${sshLogin}" ] || [ -z "${sshPort}" ]; then
+clientDesc=$3
+if [ -z "${sshLogin}" ] || [ -z "${sshPort}" ] || [ -z "${clientDesc}" ]; then
   echo "[+] Installing only client packages"
-  echo "[x] For auto tunnel to work a port needs to be specified. E.G sudo bash install_client.sh root@1.2.3.4 22"
+  echo "[x] For auto tunnel to work a port needs to be specified. E.G sudo bash install_client.sh root@1.2.3.4 22 \"Dropped at Office 123\""
   setup
   exit 1
 fi
