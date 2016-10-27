@@ -30,9 +30,10 @@ function setup {
     sudo service ssh restart
 
     #Disable Default Ubuntu SSH MOTD
-    sudo chmod -x /etc/update-motd.d/*
+    sudo chmod -x /etc/update-motd.d/* 2>/dev/null
     
     # Install PKG #
+    export LC_ALL=C
     for installpkg in git build-essential libz-dev python-pip python-scapy tcpdump dnsutils
     do
         echo "Installing "$installpkg
