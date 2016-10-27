@@ -34,6 +34,6 @@ echo "\033[0;31m
 
 \033[1;34mLast Logged in Users
 \033[0;37m${lastlogin}
-\033[0;31m" > ${1}
+\033[0;37m" > ${1}
 
 exit 0
