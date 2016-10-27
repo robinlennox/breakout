@@ -34,7 +34,7 @@ function setup {
     
     # Install PKG #
     export LC_ALL=C
-    for installpkg in git build-essential libz-dev python-pip python-scapy tcpdump dnsutils
+    for installpkg in git build-essential libz-dev python-pip python-scapy tcpdump dnsutils wireless-tools wpasupplicant
     do
         echo "Installing "$installpkg
         sudo apt-get -y install $installpkg > /dev/null
