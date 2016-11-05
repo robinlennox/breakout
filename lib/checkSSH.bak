@@ -12,7 +12,9 @@ tunnelType='TUNNEL_TYPE'
 checkSSHTunnel=$(sudo netstat -tnpa | grep 'ESTABLISHED.*ssh' | grep ${callbackIP})
 
 if [ -z "${checkSSHTunnel}" ]; then
-   sudo ssh -f -N -R ${randomPort}:localhost:22 ${sshUser}@${callbackIP} -p${callbackPort} -oStrictHostKeyChecking=no -i /home/${sshUser}/.ssh/id_rsa
+	sudo ssh -f -N -R ${randomPort}:localhost:22 ${sshUser}@${callbackIP} -p${callbackPort} -oStrictHostKeyChecking=no -i /home/${sshUser}/.ssh/id_rsa
 fi
 
 sudo sh /opt/breakout/lib/customMOTD.sh /etc/motd
+
+
