@@ -212,7 +212,7 @@ def callback():
                     print R+"[x] ICMP Enabled but unable to create ICMP Tunnel"+W
                     status = False
             else:
-                print R+"\n[x] Can't attempt ICMP Tunnel, ICMP is disabled\n"+W
+                print R+"[x] Can't attempt ICMP Tunnel, ICMP is disabled\n"+W
                 status = False
 
         # DNS Tunnel
@@ -227,7 +227,7 @@ def callback():
                 return '192.168.128.1','22','DNS'
                 status = True
             else:
-                print R+"\n[x] Can't attempt DNS Tunnel, DNS is disabled or DNS blocked on the server %s \n" %(nameserver,)+W
+                print R+"[x] Can't attempt DNS Tunnel, DNS is disabled or DNS blocked on the server %s \n" %(nameserver,)+W
                 print R+"\n[x] Try connecting to there Name Server %s \n" %(nameserver,)+W
                 status = False
 
@@ -273,7 +273,7 @@ def main():
             try:
                 tunnelIP,tunnelPort,tunnelType=callback()
             except:
-                print R+'[!] Tunnel not possible, as no posible tunnels to the callback server could be found\n'+W
+                print R+'[!] Tunnel not possible, as no posible tunnels to the callback server could be found'+W
                 tunnel = False
                 pass
 
