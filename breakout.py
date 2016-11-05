@@ -253,13 +253,20 @@ def main():
     if aggressive:
         print B+"[-] Aggressive is enabled"+W
 
-    if tunnel:
-        print B+"[-] Auto Tunnel is enabled"+W
+    isPi = os.path.isfile('/sys/class/leds/led1/trigger')
 
     if checkSSHStatus():
         sshIP = subprocess.check_output('sudo netstat -tnpa | grep \'ESTABLISHED.*ssh\' | grep -v \"127.0.0.1\" | awk \'{ print $4 }\' | cut -f1 -d\':\' | uniq', shell=True, stderr=subprocess.STDOUT)
         print G+"[+] Tunnel already open and working on %s" %(sshIP)+W
+
+        if isPi:
+            # Make the power LED Flash to show the connection is active to C&C
+            os.system("sudo sh -c 'echo timer >/sys/class/leds/led1/trigger'")
     else:
+        if isPi:
+            # Reset Heartbeat
+            os.system("sudo sh -c 'echo input >/sys/class/leds/led1/trigger'")
+
         # Kill all open SSH
         os.system('sudo killall ssh > /dev/null 2>&1')
         callbackPort=22
