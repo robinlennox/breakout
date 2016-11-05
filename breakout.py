@@ -257,7 +257,8 @@ def main():
         print B+"[-] Auto Tunnel is enabled"+W
 
     if checkSSHStatus():
-        print G+"[+] Tunnel already open and working"+W
+        sshIP = subprocess.check_output('sudo netstat -tnpa | grep \'ESTABLISHED.*ssh\' | grep -v \"127.0.0.1\" | awk \'{ print $4 }\' | cut -f1 -d\':\' | uniq', shell=True, stderr=subprocess.STDOUT)
+        print G+"[+] Tunnel already open and working on %s" %(sshIP)+W
     else:
         callbackPort=22
         tunnelIP=callbackIP
