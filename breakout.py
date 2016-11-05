@@ -131,6 +131,7 @@ def check_ports():
         print Y+"[+] Possible open port/s: %s" % (', '.join(plugin.PortCheck.possiblePorts))+W
 
 def successMessage(ipAddr,port):
+    print G+"\n[+] SSH Tunnel Created!"+W
     print W+"------------------------------"+W
     print W+"[!] Port forward using: ssh -f -N -D 8123 root@%s -p%s" % (ipAddr,port,)+W
     print W+"[!] Check it's working using: curl --proxy socks5h://localhost:8123 http://google.com"+W

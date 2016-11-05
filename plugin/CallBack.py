@@ -68,7 +68,7 @@ def checkTunnel(ipAddr,portNumber):
 				#print str(e)
 				return False
 			else:
-				print G+"[+] SSH Tunnel Created!"+W
+				#print G+"[+] SSH Tunnel Created!"+W
 				#print str(e)
 				return True
 	except:
