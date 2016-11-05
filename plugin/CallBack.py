@@ -77,6 +77,7 @@ def checkTunnel(ipAddr,portNumber):
 		return False
 
 def callIodine(switch,password,nameserver,verbose,timeout,):
+	os.system('sudo killall iodine')
 	os.system('sudo iodine -f -P %s %s %s > /dev/null 2>&1 &' %(password,nameserver,switch,))
 	time.sleep(timeout)
 	return checkTunnel('192.168.128.1',22)
