@@ -239,8 +239,23 @@ def startRecon():
     print G+"[+] The IP subnet is %s/24" % (subnetIP)
 
 def main():
+    try:
+        currentSSID = subprocess.check_output("iwconfig | grep ESSID | cut -d\\\" -f2 | grep -v \"off/any\"", shell=True, stderr=subprocess.STDOUT)
+
+        #Cleanup
+        currentSSID = currentSSID.rsplit("no wireless extensions.\n",1)[1:]
+        currentSSID = '\n'.join([str(x) for x in currentSSID]).replace('\n', ', ')[2:-2]
+    except:
+        currentSSID = 'NOT CONNECTED'
     aggressive,callbackIP,dnsPassword,nameserver,recon,sshuser,tunnel,verbose = args_check()
-    banner()
+   
+    if tunnel:
+        print B+"[-] Auto Tunnel is enabled"+W
+    else:
+        banner()
+   
+    print B+"\n[-] Scan started at %s" %(time.strftime("%Y-%m-%d %H:%M"))+W 
+    print G+"[+] On SSID: %s" %(currentSSID)+W
     if not os.geteuid() == 0:
         sys.exit(R+'[!] Script must be run as root\n'+W)
 
