@@ -153,8 +153,9 @@ def checkSSHStatus():
 
         print "[*] Check SSH port %s is open on %s" % (port, ip,)
         if not openPort(port, ip) or not checkTunnel(ip,port):
-            res = subprocess.check_output(["sudo", "apt"])
             return False
+        else:
+            return True
     else:
         return False
 
