@@ -1,3 +1,4 @@
 *.pyc
 _ignore/*
 checkSSH.sh
+logs/*
