@@ -239,6 +239,7 @@ def startRecon():
     print G+"[+] The IP subnet is %s/24" % (subnetIP)
 
 def main():
+    PWD=os.path.dirname(os.path.realpath(__file__))
     try:
         currentSSID = subprocess.check_output("iwconfig | grep ESSID | cut -d\\\" -f2 | grep -v \"off/any\"", shell=True, stderr=subprocess.STDOUT)
 
@@ -304,7 +305,6 @@ def main():
 
         if tunnel:
             print G+"[+] Setting up remote tunnel back to this device"+W
-            PWD=os.path.dirname(os.path.realpath(__file__))
             checkSSHLOC=PWD+'/lib/checkSSH.sh'
             shutil.copy(PWD+'/lib/checkSSH.bak', checkSSHLOC)
             replaceText(checkSSHLOC,'SET_IP',tunnelIP)
@@ -313,8 +313,15 @@ def main():
             replaceText(checkSSHLOC,'TUNNEL_TYPE',tunnelType)
             if checkSSHLOC not in open('/etc/crontab').read():
                 with open('/etc/crontab', "a") as file:
-                    print G+"[+] Added SSH to try every minute in /etc/crontab"+W
+                    print G+"[+] Added SSH to try two minute in /etc/crontab"+W
                     file.write("*/2 * * * * root bash %s > /dev/null 2>&1 \n" %(checkSSHLOC))
+
+        # Auto connect to wifi
+        checkWIFILOC = PWD+'/lib/connectWiFi.py'
+        if checkWIFILOC not in open('/etc/crontab').read():
+                with open('/etc/crontab', "a") as file:
+                print G+"[+] Added connect to WiFi try every minute in /etc/crontab"+W
+                file.write("*/1 * * * * root python %s > /dev/null 2>&1\n" %(checkWIFILOC))
     
     if recon:
         startRecon()
