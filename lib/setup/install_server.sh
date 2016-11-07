@@ -28,8 +28,11 @@ function main {
     # Install PKG #
     for installpkg in git build-essential libz-dev
     do
-        echo "Installing "$installpkg
-        sudo apt-get -y install $installpkg > /dev/null
+        checkinstalled=$(dpkg-query -l | grep ${installpkg})
+        if [ "" == "${checkinstalled}" ]; then
+          echo "Installing "${installpkg}
+          sudo apt-get -y install ${installpkg} > /dev/null
+        fi
     done
 
     #Install Directory

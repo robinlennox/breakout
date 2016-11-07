@@ -34,17 +34,24 @@ function setup {
     
     # Install PKG #
     export LC_ALL=C
-    for installpkg in git build-essential libz-dev python-pip python-scapy tcpdump dnsutils wireless-tools wpasupplicant nmap ssh nload htop
+    for installpkg in git build-essential python-pip python-scapy tcpdump dnsutils wireless-tools wpasupplicant nmap ssh nload htop
     do
-        echo "Installing "$installpkg
-        sudo apt-get -y install $installpkg > /dev/null
+        checkinstalled=$(dpkg-query -l | grep ${installpkg})
+        if [ "" == "${checkinstalled}" ]; then
+          echo "Installing "${installpkg}
+          sudo apt-get -y install ${installpkg} > /dev/null
+        fi
     done
 
     # Install PIP #
+    sudo -H pip install --upgrade pip > /dev/null
     for installpip in requests netaddr pexpect wireless wifi netifaces
     do
-        echo "Installing "$installpip
-        sudo -H pip install $installpip > /dev/null
+        checkinstalled=$(sudo -H pip list --format columns | grep -o ${installpip})
+        if [ "" == "${checkinstalled}" ]; then
+          echo "Installing "${installpip}
+          sudo -H pip install ${installpip} > /dev/null
+        fi
     done
 
     #Install Directory
