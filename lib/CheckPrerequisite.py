@@ -50,3 +50,9 @@ def checkTools(verbose):
     makeCommand = "sudo make > /dev/null 2>&1; sudo make install > /dev/null 2>&1"
     if not gitSetup(makeCommand,checkFile,installName, dirName,remoteURL,verbose,):
         sys.exit(R+'[!] Missing Tool %s and unable to download\n' %( installName )+W)
+
+def checkFolders(PWD,):
+    logsLOC=PWD+'/logs'
+    if not os.path.exists(logsLOC):
+        print G+"[+] Missing folder logs created"+W
+        os.makedirs(logsLOC)

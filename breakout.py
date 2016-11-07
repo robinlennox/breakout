@@ -13,7 +13,7 @@ import plugin.PortCheck
 from plugin.PortCheck import *
 from plugin.ProtocolCheck import *
 from plugin.CallBack import *
-from lib.InstallTools import *
+from lib.CheckPrerequisite import *
 
 #Import Colour Scheme
 G,Y,B,R,W = colour()
@@ -263,8 +263,9 @@ def main():
     if verbose:
         print B+"[-] Verbosity is enabled"+W
 
-    #Need to check if binary in
+    #Prerequisite checks
     checkTools(verbose)
+    checkFolders(PWD,)
 
     if aggressive:
         print B+"[-] Aggressive is enabled"+W
@@ -322,7 +323,7 @@ def main():
             with open('/etc/crontab', "a") as file:
                 print G+"[+] Added connect to WiFi try every minute in /etc/crontab"+W
                 file.write("*/1 * * * * root python %s > /dev/null 2>&1\n" %(checkWIFILOC))
-    
+
     if recon:
         startRecon()
 
