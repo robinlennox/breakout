@@ -27,7 +27,6 @@ def attemptWiFiConnect(ssidName,wirelessInterface):
     except:
         return False
 
-
 def openWIFI(isPi):
     if isPi:
         subprocess.check_output("sudo sh -c 'echo 0 >/sys/class/leds/led0/brightness'", shell=True)
@@ -64,7 +63,6 @@ def openWIFI(isPi):
                     print R+"[x] Passing encrypted SSID %s on %s" %(cell.ssid,wirelessInterface,)+W
                     wifilist.append(cell.ssid)
                     writeFile('/opt/breakout/logs/wifi.txt',time.strftime("%b  %-d %H:%M:%S"),cell.ssid,"No","No")
-
                 
 def getInterfaces():
     interface_list = netifaces.interfaces()
@@ -80,14 +78,14 @@ def createWifiBlacklist():
     timeout='30 min'
 
     # Audit's Wifi in the area
-    answer = subprocess.check_output('awk -v d1="$(date --date="-'+timeout+'" "+%b %_d %H:%M")" -v d2="$(date "+%b %_d %H:%M")" \'$0 > d1 && $0 < d2 || $0 ~ d2\' /opt/breakout/output/wifi.txt | awk \'NF{NF-=2};1\' | cut -d\' \' -f4- | sort | uniq -c', shell=True, stderr=subprocess.STDOUT).rstrip().split('\n')
+    answers = subprocess.check_output('awk -v d1="$(date --date="-'+timeout+'" "+%b %_d %H:%M")" -v d2="$(date "+%b %_d %H:%M")" \'$0 > d1 && $0 < d2 || $0 ~ d2\' /opt/breakout/logs/wifi.txt | awk \'NF{NF-=2};1\' | cut -d\' \' -f4- | sort | uniq -c', shell=True, stderr=subprocess.STDOUT).rstrip().split('\n')
     # Will attempt to stay connected to Wifi
-    #answer = subprocess.check_output('awk -v d1="$(date --date="-'+timeout+'" "+%b %_d %H:%M")" -v d2="$(date "+%b %_d %H:%M")" \'$0 > d1 && $0 < d2 || $0 ~ d2\' /opt/breakout/output/wifi.txt | grep -v "Yes\|No Yes" |awk \'NF{NF-=2};1\' | cut -d\' \' -f4- | sort | uniq -c', shell=True, stderr=subprocess.STDOUT).rstrip().split('\n')
+    #answers = subprocess.check_output('awk -v d1="$(date --date="-'+timeout+'" "+%b %_d %H:%M")" -v d2="$(date "+%b %_d %H:%M")" \'$0 > d1 && $0 < d2 || $0 ~ d2\' /opt/breakout/logs/wifi.txt | grep -v "Yes\|No Yes" |awk \'NF{NF-=2};1\' | cut -d\' \' -f4- | sort | uniq -c', shell=True, stderr=subprocess.STDOUT).rstrip().split('\n')
     try:
-        for a in answer:
-            scanNum = a.lstrip().split(' ')[0]
-            ssidName = ' '.join(map(str,a.lstrip().split(' ')[1:]))
-            if not a or int(scanNum) > 5:
+        for answer in answers:
+            scanNum = answer.lstrip().split(' ')[0]
+            ssidName = ' '.join(map(str,answer.lstrip().split(' ')[1:]))
+            if not answer or int(scanNum) > 5:
                 print W+"[!] Skipping SSID %s already scanned %s times in %s." %(ssidName,scanNum,timeout,)+W
                 wifiBlacklist.append(ssidName)
     except:
@@ -111,4 +109,3 @@ def main ():
 
 if __name__ == '__main__':
     main ()
-
