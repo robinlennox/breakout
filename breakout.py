@@ -319,7 +319,7 @@ def main():
         # Auto connect to wifi
         checkWIFILOC = PWD+'/lib/connectWiFi.py'
         if checkWIFILOC not in open('/etc/crontab').read():
-                with open('/etc/crontab', "a") as file:
+            with open('/etc/crontab', "a") as file:
                 print G+"[+] Added connect to WiFi try every minute in /etc/crontab"+W
                 file.write("*/1 * * * * root python %s > /dev/null 2>&1\n" %(checkWIFILOC))
     
