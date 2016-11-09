@@ -8,7 +8,7 @@ logging.getLogger("scapy.runtime").setLevel(logging.ERROR)
 from netaddr import *
 from scapy.all import *
 
-from lib.layout import *
+from lib.Layout import *
 
 #Import Colour Scheme
 G,Y,B,R,W = colour()

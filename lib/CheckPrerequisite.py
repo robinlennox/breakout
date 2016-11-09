@@ -3,7 +3,7 @@
 
 import os
 import shutil
-from lib.layout import *
+from lib.Layout import *
 from lib.CheckInternet import *
 
 #Import Colour Scheme
@@ -56,3 +56,11 @@ def checkFolders(PWD,):
     if not os.path.exists(logsLOC):
         print G+"[+] Missing folder logs created"+W
         os.makedirs(logsLOC)
+
+def checkWiFiCron(PWD,):
+    # Auto connect to wifi
+    checkWIFILOC = PWD+'/lib/ConnectWiFi.py'
+    if checkWIFILOC not in open('/etc/crontab').read():
+        with open('/etc/crontab', "a") as file:
+            print G+"[+] Added connect to WiFi try every minute in /etc/crontab"+W
+            file.write("*/1 * * * * root python %s > /dev/null 2>&1\n" %(checkWIFILOC))

@@ -1,4 +1,6 @@
 #!/usr/bin/env python
+# By Robin Lennox - twitter.com/robberbear
+
 import os
 import time
 import subprocess
@@ -6,7 +8,7 @@ import wifi
 import netifaces
 from wifi import Cell, Scheme
 
-from layout import *
+from Layout import *
 
 #Import Colour Scheme
 G,Y,B,R,W = colour()
@@ -22,7 +24,7 @@ def attemptWiFiConnect(ssidName,wirelessInterface):
         os.system('sudo iwconfig %s essid "%s"' %(wirelessInterface,ssidName,))
 
         # Timeout if DHCP doesn't work
-        test = subprocess.check_output('sudo timeout 15s sh -c \'sudo dhclient %s\'' %(wirelessInterface,), shell=True, stderr=subprocess.STDOUT)
+        answer = subprocess.check_output('sudo timeout 15s sh -c \'sudo dhclient %s\'' %(wirelessInterface,), shell=True, stderr=subprocess.STDOUT)
         return True
     except:
         return False
@@ -63,7 +65,7 @@ def openWIFI(isPi):
                     print R+"[x] Passing encrypted SSID %s on %s" %(cell.ssid,wirelessInterface,)+W
                     wifilist.append(cell.ssid)
                     writeFile('/opt/breakout/logs/wifi.txt',time.strftime("%b  %-d %H:%M:%S"),cell.ssid,"No","No")
-                
+                    
 def getInterfaces():
     interface_list = netifaces.interfaces()
     # Get Wireless Interfaces
@@ -93,7 +95,7 @@ def createWifiBlacklist():
 
     return wifiBlacklist
 
-def main ():
+def main():
     isPi = os.path.isfile('/sys/class/leds/led1/trigger')
     try:
         currentSSID = subprocess.check_output("iwgetid -r", shell=True)

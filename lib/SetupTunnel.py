@@ -1,4 +1,4 @@
-#!/usr/bin/python
+#!/usr/bin/env python
 # By Robin Lennox - twitter.com/robberbear
 
 import os
@@ -8,7 +8,7 @@ import logging
 logging.getLogger("scapy.runtime").setLevel(logging.ERROR)
 from scapy.all import *
 from pexpect import pxssh
-from lib.layout import *
+from lib.Layout import *
 
 #Import Colour Scheme
 G,Y,B,R,W = colour()
@@ -25,8 +25,14 @@ def openPort(port,ip):
 		return False
 
 def icmpTunnelAttempt(ip,PWD):
-	answer = subprocess.check_output(PWD+'/icmp_tunnel_client.sh %s' %(ip), shell=True)
-	return answer
+	try:
+		os.system('echo "1" | sudo tee /proc/sys/net/ipv4/icmp_echo_ignore_all > /dev/null 2>&1')
+		os.system('(sudo /opt/icmptunnel/icmptunnel %s >/dev/null 2>&1) &' %(ip))
+		os.system('sudo /sbin/ifconfig tun0 10.0.0.2 netmask 255.255.255.0 > /dev/null 2>&1')
+		answer = subprocess.check_output('nc -z -w15 10.0.0.1 22', shell=True, stderr=subprocess.STDOUT)
+		return True
+	except:
+		return False
 
 def icmpTunnel(ipAddr,verbose):
 	count = 0
@@ -38,7 +44,7 @@ def icmpTunnel(ipAddr,verbose):
 			if verbose:
 				print B+"[-] Attempting ICMP Tunnel"+W
 			time.sleep(5)
-			if '0' in icmpTunnelAttempt(ipAddr,PWD):
+			if icmpTunnelAttempt(ipAddr,PWD):
 				return True
 				break
 			else:
@@ -76,8 +82,11 @@ def checkTunnel(ipAddr,portNumber):
 		print failedMessage
 		return False
 
+def killIodine():
+	 os.system('sudo killall iodine > /dev/null 2>&1')
+
 def callIodine(switch,password,nameserver,verbose,timeout,):
-	os.system('sudo killall iodine')
+	killIodine()
 	os.system('sudo iodine -f -P %s %s %s > /dev/null 2>&1 &' %(password,nameserver,switch,))
 	time.sleep(timeout)
 	return checkTunnel('192.168.128.1',22)
@@ -91,7 +100,7 @@ def dnsTunnel(password,nameserver,verbose,):
 			return True
 			count = stopCount
 		else:
-			os.system('sudo killall iodine > /dev/null 2>&1')
+			killIodine()
 			count = count + 1
 	
 	# Fallback try RAW
@@ -100,4 +109,4 @@ def dnsTunnel(password,nameserver,verbose,):
 		print B+"[-] An DNS Tunnel the server is not as fast as a RAW Tunnel"+W
 		return True
 	else:
-		os.system('sudo killall iodine > /dev/null 2>&1')
+		killIodine()
