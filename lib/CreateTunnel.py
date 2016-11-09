@@ -150,7 +150,7 @@ def attemptCallback(callbackIP,dnsPassword,nameserver,verbose,):
                 print R+"\n[x] Try connecting to there Name Server %s \n" %(nameserver,)+W
                 status = False
 
-def main(aggressive,callbackIP,dnsPassword,isPi,nameserver,PWD,tunnel,verbose,):
+def main(aggressive,callbackIP,dnsPassword,isPi,nameserver,PWD,sshuser,tunnel,verbose,):
     if checkSSHStatus():
         sshIP = subprocess.check_output('sudo netstat -tnpa | grep \'ESTABLISHED.*ssh\' | grep -v \"127.0.0.1\" | awk \'{ print $4 }\' | cut -f1 -d\':\' | uniq', shell=True, stderr=subprocess.STDOUT)
         print G+"[+] Tunnel already open and working on %s" %(sshIP)+W

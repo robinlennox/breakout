@@ -136,7 +136,7 @@ def main():
     checkWiFiCron(PWD,)
 
     #Check for open ports and Tunnel
-    lib.CreateTunnel.main(aggressive,callbackIP,dnsPassword,isPi,nameserver,PWD,tunnel,verbose,)
+    lib.CreateTunnel.main(aggressive,callbackIP,dnsPassword,isPi,nameserver,PWD,sshuser,tunnel,verbose,)
 
     if recon:
         startRecon()
