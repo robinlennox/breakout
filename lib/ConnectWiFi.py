@@ -54,17 +54,17 @@ def openWIFI(isPi):
                     wifiConnected = attemptWiFiConnect(cell.ssid,wirelessInterface)
                     if wifiConnected:
                         print G+"[+] Successfully connected to SSID %s on %s" %(cell.ssid,wirelessInterface,)+W
-                        writeFile('/opt/breakout/logs/wifi.txt',time.strftime("%b  %-d %H:%M:%S"),cell.ssid,"Yes","Yes")
+                        writeFile('/opt/breakout/logs/wifi.txt',time.strftime("%b %-d %H:%M:%S"),cell.ssid,"Yes","Yes")
                         if isPi:
                             subprocess.check_output("sudo sh -c 'echo 1 >/sys/class/leds/led0/brightness'", shell=True)
                         break
                     else:
                         print R+"[x] Failed to connect to SSID %s on %s" %(cell.ssid,wirelessInterface,)+W
-                        writeFile('/opt/breakout/logs/wifi.txt',time.strftime("%b  %-d %H:%M:%S"),cell.ssid,"Yes","No")
+                        writeFile('/opt/breakout/logs/wifi.txt',time.strftime("%b %-d %H:%M:%S"),cell.ssid,"Yes","No")
                 elif cell.ssid:
                     print R+"[x] Passing encrypted SSID %s on %s" %(cell.ssid,wirelessInterface,)+W
                     wifilist.append(cell.ssid)
-                    writeFile('/opt/breakout/logs/wifi.txt',time.strftime("%b  %-d %H:%M:%S"),cell.ssid,"No","No")
+                    writeFile('/opt/breakout/logs/wifi.txt',time.strftime("%b %-d %H:%M:%S"),cell.ssid,"No","No")
                     
 def getInterfaces():
     interface_list = netifaces.interfaces()
