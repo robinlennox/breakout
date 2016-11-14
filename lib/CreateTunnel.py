@@ -23,7 +23,6 @@ def replaceText(filename,origText,replaceText,):
     f.close()
 
 def successMessage(ipAddr,port):
-    print G+"[+] SSH Tunnel Created!"+W
     print W+"------------------------------"+W
     print W+"[!] Port forward using: ssh -f -N -D 8123 root@%s -p%s" % (ipAddr,port,)+W
     print W+"[!] Check it's working using: curl --proxy socks5h://localhost:8123 http://google.com"+W
@@ -70,7 +69,7 @@ def checkSSHStatus():
                 if str(re.findall(r"(?<=callbackPort=')(.*)(?=')",line))[2:-2]:
                     port = int(str(re.findall(r"(?<=callbackPort=')(.*)(?=')",line))[2:-2])
 
-        print "[*] Check SSH port %s is open on %s" % (port, ip,)
+        print B+"[*] Check SSH port %s is open on %s" % (port, ip,)+W
         if not openPort(port, ip) or not checkTunnel(ip,port):
             return False
         else:
@@ -173,6 +172,7 @@ def main(aggressive,callbackIP,dnsPassword,isPi,nameserver,PWD,sshuser,tunnel,ve
         if openPort(callbackPort,callbackIP) and checkTunnel(callbackIP,callbackPort):
             # Quick check for 22
             successMessage(callbackIP,callbackPort)
+            print G+"[+] SSH Tunnel Created!"+W
         else:
             check_ports(aggressive,verbose,)
 
