@@ -7,6 +7,7 @@ import sys
 import time
 
 import lib.PortCheck
+from lib.ConnectWiFi import *
 from lib.PortCheck import *
 from lib.ProtocolCheck import *
 from lib.SetupTunnel import *
