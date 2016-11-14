@@ -16,7 +16,7 @@ G,Y,B,R,W = colour()
 def attemptWiFiConnect(ssidName,wirelessInterface):
     try:
         #Need if network-manager is installed
-        os.system('sudo service network-manager stop')
+        os.system('sudo service network-manager stop > /dev/null 2>&1')
         os.system('sudo rfkill unblock wifi; sudo rfkill unblock all')
         os.system('sudo ifconfig %s up' %(wirelessInterface,))
         # Allow the interface to come backup
