@@ -119,7 +119,7 @@ def main():
     else:
         banner()
    
-    print B+"\n[-] Scan started at %s" %(time.strftime("%b  %-d %H:%M:%S"))+W 
+    print B+"\n[-] Scan started at %s" %(time.strftime("%b %-d %H:%M:%S"))+W 
     print G+"[+] On SSID: %s" %(currentSSID)+W
     if not os.geteuid() == 0:
         sys.exit(R+'[!] Script must be run as root\n'+W)
