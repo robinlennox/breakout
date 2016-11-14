@@ -9,6 +9,7 @@ sshUser='SET_USER'
 callbackIP='SET_IP'
 callbackPort='SET_PORT'
 tunnelType='TUNNEL_TYPE'
+gatewayWifi='GATEWAY_WIFI'
 checkSSHTunnel=$(sudo netstat -tnpa | grep 'ESTABLISHED.*ssh' | grep ${callbackIP})
 
 if [ -z "${checkSSHTunnel}" ]; then
