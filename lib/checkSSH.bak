@@ -10,7 +10,7 @@ callbackIP='SET_IP'
 callbackPort='SET_PORT'
 tunnelType='TUNNEL_TYPE'
 gatewayWifi='GATEWAY_WIFI'
-checkSSHTunnel=$(sudo netstat -tnpa | grep 'ESTABLISHED.*ssh' | grep ${callbackIP})
+checkSSHTunnel=$(sudo netstat -tnpa | grep 'ESTABLISHED.*ssh ' | grep ${callbackIP})
 
 if [ -z "${checkSSHTunnel}" ]; then
 	sudo ssh -f -N -R ${randomPort}:localhost:22 ${sshUser}@${callbackIP} -p${callbackPort} -oStrictHostKeyChecking=no -i /home/${sshUser}/.ssh/id_rsa
