@@ -24,10 +24,10 @@ def openPort(port,ip):
 	except:
 		return False
 
-def icmpTunnelAttempt(ip,PWD):
+def icmpTunnelAttempt(ipAddr):
 	try:
 		os.system('echo "1" | sudo tee /proc/sys/net/ipv4/icmp_echo_ignore_all > /dev/null 2>&1')
-		os.system('(sudo /opt/icmptunnel/icmptunnel %s >/dev/null 2>&1) &' %(ip))
+		os.system('(sudo /opt/icmptunnel/icmptunnel %s >/dev/null 2>&1) &' %(ipAddr))
 		os.system('sudo /sbin/ifconfig tun0 10.0.0.2 netmask 255.255.255.0 > /dev/null 2>&1')
 		answer = subprocess.check_output('nc -z -w15 10.0.0.1 22', shell=True, stderr=subprocess.STDOUT)
 		return True
@@ -37,14 +37,12 @@ def icmpTunnelAttempt(ip,PWD):
 def icmpTunnel(ipAddr,verbose):
 	count = 0
 	stopCount = 5
-	PWD=os.path.dirname(os.path.realpath(__file__))
-	os.chmod(PWD+'/icmp_tunnel_client.sh', 0o655)
 	response = sr1(IP(dst="10.0.0.1")/TCP(dport=22, flags="S"),verbose=False, timeout=1)
 	while (count < stopCount):
 			if verbose:
 				print B+"[-] Attempting ICMP Tunnel"+W
 			time.sleep(5)
-			if icmpTunnelAttempt(ipAddr,PWD):
+			if icmpTunnelAttempt(ipAddr):
 				return True
 				break
 			else:
