@@ -170,13 +170,54 @@ def defaultRoute(interface,dhclientFile):
             os.system("sudo ip route add default via %s dev %s > /dev/null 2>&1" %(gateway,interface,))
             return True
         except:
-            print R+"[x] No DCHP information found for interface %s." %(interface,)+W
+            print R+"[x] No DHCP information found for interface %s." %(interface,)+W
     else:
         print R+'[!] DHCP Client file %s not found for interface %s. Possible not connected to any WiFi.' %(dhclientFile,interface,)+W
 
 def is_interface_up(interface):
     addr = netifaces.ifaddresses(interface)
     return netifaces.AF_INET in addr
+
+def setupGateways(dhclientFile,ethernetInterface,ethernetUp,gatewayWifi,successfulConnection,timeout,):
+    #Create file if not exist
+    open("/opt/breakout/logs/tunnels.txt", "a")
+    #gatewayWifi = defaultRoute(ethernetInterface,dhclientFile)
+    totalAttempts = subprocess.check_output('awk -v d1="$(date --date="-'+timeout+'" "+%b %_d %H:%M")" -v d2="$(date "+%b %_d %H:%M")" \'$0 > d1 && $0 < d2 || $0 ~ d2\' /opt/breakout/logs/tunnels.txt | grep Successful_Connection=False | wc -l', shell=True, stderr=subprocess.STDOUT).rstrip().lstrip()
+    if ethernetUp and totalAttempts and int(totalAttempts) > 20:
+        print R+"[!] Unable to tunnel resetting routing tables and rebooting"+W
+        
+        #Clear routing table and applying default settings.
+        os.system('rm /opt/breakout/logs/tunnels.txt > /dev/null 2>&1')
+        os.system('rm /opt/breakout/lib/checkSSH.sh > /dev/null 2>&1')
+        os.system('rm /etc/motd > /dev/null 2>&1')
+        os.system('rm /var/lib/dhcp/dhclient* > /dev/null 2>&1')
+        os.system('sudo ip route flush table main && sudo reboot')
+
+    elif ethernetUp and totalAttempts and int(totalAttempts) > 5:
+        gatewayWifi = True
+        print R+"[!] Unable to tunnel out using current default routes"+W
+        interfaces = lib.ConnectWiFi.getInterfaces()
+        for wirelessInterface in interfaces:
+            print B+"[-] Trying to route internet traffic via interface %s" %(wirelessInterface,)+W 
+            gatewayWifi = defaultRoute(wirelessInterface,dhclientFile)
+            # Reset the default interface
+            os.system('sudo ifconfig %s down' %(ethernetInterface))
+            time.sleep(10)
+
+    writeFile('/opt/breakout/logs/tunnels.txt',time.strftime("%b %-d %H:%M:%S"),ethernetUp,gatewayWifi,successfulConnection)
+
+def setupAutoTunnel(checkSSHLOC,gatewayWifi,PWD,sshuser,tunnelIP,tunnelPort,tunnelType,):
+    print G+"[+] Setting up remote tunnel back to this device"+W
+    shutil.copy(PWD+'/lib/checkSSH.bak', checkSSHLOC)
+    replaceText(checkSSHLOC,'SET_IP',tunnelIP)
+    replaceText(checkSSHLOC,'SET_PORT',tunnelPort)
+    replaceText(checkSSHLOC,'SET_USER',sshuser)
+    replaceText(checkSSHLOC,'TUNNEL_TYPE',tunnelType)
+    replaceText(checkSSHLOC,'GATEWAY_WIFI',gatewayWifi)
+    if checkSSHLOC not in open('/etc/crontab').read():
+        with open('/etc/crontab', "a") as file:
+            print G+"[+] Added SSH to try two minute in /etc/crontab"+W
+            file.write("*/2 * * * * root bash %s > /dev/null 2>&1 \n" %(checkSSHLOC))
 
 def main(aggressive,callbackIP,dnsPassword,isPi,nameserver,PWD,sshuser,tunnel,verbose,):
     checkSSHLOC=PWD+'/lib/checkSSH.sh'
@@ -190,6 +231,7 @@ def main(aggressive,callbackIP,dnsPassword,isPi,nameserver,PWD,sshuser,tunnel,ve
     for interface in interface_list:
         if interface.startswith('e'):
             ethernetUp = is_interface_up(interface)
+            ethernetInterface = interface
 
     # Check if Gateway as been set
     try:
@@ -212,29 +254,7 @@ def main(aggressive,callbackIP,dnsPassword,isPi,nameserver,PWD,sshuser,tunnel,ve
         writeFile('/opt/breakout/logs/tunnels.txt',time.strftime("%b %-d %H:%M:%S"),ethernetUp,gatewayWifi,successfulConnection)
 
     else:
-        #Create file if not exist
-        open("/opt/breakout/logs/tunnels.txt", "a")
-        totalAttempts = subprocess.check_output('awk -v d1="$(date --date="-'+timeout+'" "+%b %_d %H:%M")" -v d2="$(date "+%b %_d %H:%M")" \'$0 > d1 && $0 < d2 || $0 ~ d2\' /opt/breakout/logs/tunnels.txt | grep Successful_Connection=False | wc -l', shell=True, stderr=subprocess.STDOUT).rstrip().lstrip()
-        if ethernetUp and totalAttempts and int(totalAttempts) > 20:
-            print R+"[!] Unable to tunnel resetting routing tables and rebooting"+W
-            #Clear routing table.
-            os.system('rm /opt/breakout/logs/tunnels.txt > /dev/null 2>&1')
-            os.system('rm %s > /dev/null 2>&1') %(dhclientFile)
-            os.system('sudo ip route flush table main && sudo reboot')
-
-        elif ethernetUp and totalAttempts and int(totalAttempts) > 5:
-            gatewayWifi = True
-            print R+"[!] Unable to tunnel out using current default routes"+W
-            #print B+"[-] Trying to disable eth0 and use WiFi"+W
-            interfaces = lib.ConnectWiFi.getInterfaces()
-            for wirelessInterface in interfaces:
-                print B+"[-] Trying to route internet traffic via interface %s" %(wirelessInterface,)+W 
-                gatewayWifi = defaultRoute(wirelessInterface,dhclientFile)
-                # Reset the default interface
-                os.system('sudo ifconfig eth0 down')
-                time.sleep(10)
-
-        writeFile('/opt/breakout/logs/tunnels.txt',time.strftime("%b %-d %H:%M:%S"),ethernetUp,gatewayWifi,successfulConnection)
+        setupGateways(dhclientFile,ethernetInterface,ethernetUp,gatewayWifi,successfulConnection,timeout,)
 
         if isPi:
             # Reset Heartbeat
@@ -242,34 +262,27 @@ def main(aggressive,callbackIP,dnsPassword,isPi,nameserver,PWD,sshuser,tunnel,ve
 
         # Kill all open SSH
         os.system('sudo killall ssh > /dev/null 2>&1')
-        callbackPort=22
+        callbackPort=0
         tunnelIP=callbackIP
         tunnelPort=callbackPort
         tunnelType='Open Port'
         if openPort(callbackPort,callbackIP) and checkTunnel(callbackIP,callbackPort):
-            # Quick check for 22
+            if verbose:
+                print Y+"[*] Quick check if port 22 is accessible."+W
             successMessage(callbackIP,callbackPort)
             print G+"[+] SSH Tunnel Created!"+W
         else:
+            if verbose:
+                print R+"[!] Quick check failed, Port 22 not accessible."+W
             check_ports(aggressive,verbose,)
 
             # Try incase nothing returned as there is no possible tunnel
             try:
                 tunnelIP,tunnelPort,tunnelType=attemptCallback(callbackIP,dnsPassword,nameserver,verbose,)
             except:
-                print R+'[!] Tunnel not possible, as no posible tunnels to the callback server could be found'+W
+                print R+'[!] Tunnel not possible, as no possible tunnels to the callback server could be found'+W
                 tunnel = False
                 pass
 
         if tunnel:
-            print G+"[+] Setting up remote tunnel back to this device"+W
-            shutil.copy(PWD+'/lib/checkSSH.bak', checkSSHLOC)
-            replaceText(checkSSHLOC,'SET_IP',tunnelIP)
-            replaceText(checkSSHLOC,'SET_PORT',tunnelPort)
-            replaceText(checkSSHLOC,'SET_USER',sshuser)
-            replaceText(checkSSHLOC,'TUNNEL_TYPE',tunnelType)
-            replaceText(checkSSHLOC,'GATEWAY_WIFI',gatewayWifi)
-            if checkSSHLOC not in open('/etc/crontab').read():
-                with open('/etc/crontab', "a") as file:
-                    print G+"[+] Added SSH to try two minute in /etc/crontab"+W
-                    file.write("*/2 * * * * root bash %s > /dev/null 2>&1 \n" %(checkSSHLOC))
+            setupAutoTunnel(checkSSHLOC,gatewayWifi,PWD,sshuser,tunnelIP,tunnelPort,tunnelType,)
