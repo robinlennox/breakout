@@ -254,6 +254,7 @@ def main(aggressive,callbackIP,dnsPassword,isPi,nameserver,PWD,sshuser,tunnel,ve
         writeFile('/opt/breakout/logs/tunnels.txt',time.strftime("%b %-d %H:%M:%S"),ethernetUp,gatewayWifi,successfulConnection)
 
     else:
+        # Check which Gateway to use Ethernet or WiFi
         setupGateways(dhclientFile,ethernetInterface,ethernetUp,gatewayWifi,successfulConnection,timeout,)
 
         if isPi:
@@ -262,7 +263,7 @@ def main(aggressive,callbackIP,dnsPassword,isPi,nameserver,PWD,sshuser,tunnel,ve
 
         # Kill all open SSH
         os.system('sudo killall ssh > /dev/null 2>&1')
-        callbackPort=0
+        callbackPort=22
         tunnelIP=callbackIP
         tunnelPort=callbackPort
         tunnelType='Open Port'
