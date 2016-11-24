@@ -1,5 +1,5 @@
 # Breakout
-![alt tag](https://github.com/robinlennox/breakout/images/Breakout_logo.png)
+![alt tag](https://github.com/robinlennox/breakout/blob/master/images/Breakout_logo.png)
 ![GPLv3 License](https://img.shields.io/badge/License-GPLv3-red.svg) [![Python 2.6|2.7](https://img.shields.io/badge/python-2.6|2.7-yellow.svg)](https://www.python.org/) [![Twitter Follow](https://img.shields.io/twitter/follow/robberbear.svg?style=social&label=@robberbear)](https://twitter.com/robberbear)
 
 Breakout was built to allow a device to get access to the internet on a restricted network by trying to find an open port on the firewall, making a ICMP Tunnel or a DNS Tunnel.
