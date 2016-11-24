@@ -107,9 +107,19 @@ def startRecon():
     print G+"[+] The IP address is %s" % (localIP)
     print G+"[+] The IP subnet is %s/24" % (subnetIP)
 
+def checkRunningState():
+    numberOfProcesses = int(subprocess.check_output('ps -ef | grep breakout | grep -v grep | grep -v sudo | wc -l', shell=True, stderr=subprocess.STDOUT))
+    if numberOfProcesses != 1:
+        print R+"[!] Breakout already running"+W
+        sys.exit(0)
+
 def main():
     PWD = os.path.dirname(os.path.realpath(__file__))
     isPi = os.path.isfile('/sys/class/leds/led1/trigger')
+    
+    # Stop if already Running
+    checkRunningState()
+
     currentSSID = getSSID()
 
     aggressive,callbackIP,dnsPassword,nameserver,recon,sshuser,tunnel,verbose = args_check()
