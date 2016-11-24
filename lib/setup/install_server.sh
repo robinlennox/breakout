@@ -40,6 +40,10 @@ function main {
     mkdir ${BREAKOUT_DIRECTORY}
     git clone https://github.com/robinlennox/breakout ${BREAKOUT_DIRECTORY}
 
+    #Make link to script
+    chmod +x /opt/breakout/lib/breakoutTunnels.sh
+    sudo ln -s /opt/breakout/lib/breakoutTunnels.sh /usr/local/bin/breakoutTunnels
+
     #Crontob
     echo "*/1 * * * * root bash ${BREAKOUT_DIRECTORY}/lib/server/tunnel_server.sh > /dev/null 2>&1" | sudo tee -a /etc/crontab
     echo "*/1 * * * * root bash ${BREAKOUT_DIRECTORY}/lib/server/open_ports.sh > /dev/null 2>&1" | sudo tee -a /etc/crontab
