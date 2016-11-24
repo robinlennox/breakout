@@ -45,6 +45,8 @@ def openWIFI(isPi):
         #print result_list
 
         wifilist = createWifiBlacklist()
+        wifilist.extend(createWifiIgnorelist())
+        
         wifiConnected = False
         for cell in cells:
             if cell.ssid not in wifilist:
@@ -74,6 +76,15 @@ def getInterfaces():
 def writeFile(fileName,timeStamp,ssid,openStatus,connected):
     with open(fileName, 'a') as file:
         file.write("%s %s Open=%s Connected=%s \n" % (timeStamp,ssid,openStatus,connected))
+
+def createWifiIgnorelist():
+    wifiIgnorelist = []
+    for ssidName in open('/opt/breakout/configs/ignore_ssid'):
+        ssidName = ssidName.rstrip('\n')
+        print W+"[!] Ignoring SSID: %s" %(ssidName,)+W
+        wifiIgnorelist.append(ssidName)
+
+    return wifiIgnorelist
 
 def createWifiBlacklist():
     wifiBlacklist = []
