@@ -15,8 +15,8 @@ checkRunningState=$(ps -eo command | grep "^bash" | grep checkSSH.sh | wc -l)
 checkPortOpen=$(nc -z -v -w10 ${callbackIP} ${callbackPort} 2>&1)
 
 if [ "${checkRunningState}" -lt 3 ]; then
-    if [[ "${checkPortOpen}" == *"succeeded"* ]; then
-        if [ -z "${checkSSHTunnel}" ]]; then
+    if [[ "${checkPortOpen}" == *"succeeded"* ]]; then
+        if [ -z "${checkSSHTunnel}" ]; then
             sudo ssh -f -N -R ${randomPort}:localhost:22 ${sshUser}@${callbackIP} -p${callbackPort} -oStrictHostKeyChecking=no -i /home/${sshUser}/.ssh/id_rsa &>/dev/null
             # Turn Off Power LED to indicate that SSH Tunnel Created
             sudo sh -c 'echo gpio >/sys/class/leds/led1/trigger'
