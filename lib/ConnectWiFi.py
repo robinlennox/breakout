@@ -1,14 +1,13 @@
 #!/usr/bin/env python
 # By Robin Lennox - twitter.com/robberbear
 
+import netifaces
 import os
 import time
-import subprocess
-import wifi
-import netifaces
-from wifi import Cell, Scheme
 
-from Layout import *
+import wifi
+
+from ScriptManagement import *
 
 #Import Colour Scheme
 G,Y,B,R,W = colour()
@@ -46,7 +45,7 @@ def openWIFI(isPi):
 
         wifilist = createWifiBlacklist()
         wifilist.extend(createWifiIgnorelist())
-        
+
         wifiConnected = False
         for cell in cells:
             if cell.ssid not in wifilist:
@@ -107,6 +106,9 @@ def createWifiBlacklist():
     return wifiBlacklist
 
 def main():
+    # Stop if already Running
+    checkRunningState("ConnectWiFi.py")
+
     isPi = os.path.isfile('/sys/class/leds/led1/trigger')
     try:
         currentSSID = subprocess.check_output("iwgetid -r", shell=True)

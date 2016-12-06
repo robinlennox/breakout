@@ -2,14 +2,10 @@
 # By Robin Lennox - twitter.com/robberbear
 
 import argparse
-import subprocess
-import sys
-import time
 
-from lib.Layout import *
-from lib.CheckInternet import *
 from lib.CheckPrerequisite import *
 from lib.CreateTunnel import *
+from lib.ScriptManagement import *
 
 #Import Colour Scheme
 G,Y,B,R,W = colour()
@@ -107,18 +103,14 @@ def startRecon():
     print G+"[+] The IP address is %s" % (localIP)
     print G+"[+] The IP subnet is %s/24" % (subnetIP)
 
-def checkRunningState():
-    numberOfProcesses = int(subprocess.check_output('ps -ef | grep breakout | grep -v grep | grep -v sudo | wc -l', shell=True, stderr=subprocess.STDOUT))
-    if numberOfProcesses != 1:
-        print R+"[!] Breakout already running"+W
-        sys.exit(0)
-
 def main():
     PWD = os.path.dirname(os.path.realpath(__file__))
     isPi = os.path.isfile('/sys/class/leds/led1/trigger')
-    
+
+    print B+"\n[-] Scan started at %s" %(time.strftime("%b %-d %H:%M:%S"))+W
+
     # Stop if already Running
-    checkRunningState()
+    checkRunningState("breakout.py")
 
     currentSSID = getSSID()
 
@@ -129,7 +121,6 @@ def main():
     else:
         banner()
    
-    print B+"\n[-] Scan started at %s" %(time.strftime("%b %-d %H:%M:%S"))+W 
     print G+"[+] On SSID: %s" %(currentSSID)+W
     if not os.geteuid() == 0:
         sys.exit(R+'[!] Script must be run as root\n'+W)

