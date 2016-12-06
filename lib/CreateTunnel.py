@@ -335,3 +335,8 @@ def main(aggressive,callbackIP,currentSSID,dnsPassword,isPi,nameserver,PWD,sshus
 
         if tunnel:
             setupAutoTunnel(checkSSHLOC,gatewayWifi,PWD,sshuser,tunnelIP,tunnelPort,tunnelType,)
+            attemptSSHTunnel = subprocess.check_output('sudo bash /opt/breakout/lib/checkSSH.sh', shell=True)
+            # Allow time for tunnel to start over low latancy.
+            time.sleep (30)
+            print G+"%s" %(attemptSSHTunnel)+W
+
