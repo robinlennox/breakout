@@ -55,26 +55,30 @@ def check_ports(aggressive,verbose,):
     if lib.PortCheck.possiblePorts:
         print Y+"[+] Possible open port/s: %s" % (', '.join(lib.PortCheck.possiblePorts))+W
 
-def checkSSHStatus():
+def checkSSHStatus(callbackIP):
     checkSSHFile = '/opt/breakout/lib/checkSSH.sh'
-    if os.path.isfile(checkSSHFile):
-        with open(checkSSHFile) as f:
-            for line in f:
-                if str(re.findall(r"(?<=sshUser=')(.*)(?=')",line))[2:-2]:
-                    username = str(re.findall(r"(?<=sshUser=')(.*)(?=')",line))[2:-2]
-                
-                if str(re.findall(r"(?<=callbackIP=')(.*)(?=')",line))[2:-2]:
-                    ip = str(re.findall(r"(?<=callbackIP=')(.*)(?=')",line))[2:-2]
-                
-                if str(re.findall(r"(?<=callbackPort=')(.*)(?=')",line))[2:-2]:
-                    port = int(str(re.findall(r"(?<=callbackPort=')(.*)(?=')",line))[2:-2])
+    try:
+        checkSSHProcess = subprocess.check_output('sudo netstat -tnpa | grep \'ESTABLISHED.*ssh \' | grep %s' %(callbackIP), shell=True)
+        if os.path.isfile(checkSSHFile):
+            with open(checkSSHFile) as f:
+                for line in f:
+                    if str(re.findall(r"(?<=sshUser=')(.*)(?=')",line))[2:-2]:
+                        username = str(re.findall(r"(?<=sshUser=')(.*)(?=')",line))[2:-2]
+                    
+                    if str(re.findall(r"(?<=callbackIP=')(.*)(?=')",line))[2:-2]:
+                        ip = str(re.findall(r"(?<=callbackIP=')(.*)(?=')",line))[2:-2]
+                    
+                    if str(re.findall(r"(?<=callbackPort=')(.*)(?=')",line))[2:-2]:
+                        port = int(str(re.findall(r"(?<=callbackPort=')(.*)(?=')",line))[2:-2])
 
-        print B+"[*] Check SSH port %s is open on %s" % (port, ip,)+W
-        if not openPort(port, ip) or not checkTunnel(ip,port):
-            return False
+            print B+"[*] Check SSH port %s is open on %s" % (port, ip,)+W
+            if not openPort(port, ip) or not checkTunnel(ip,port):
+                return False
+            else:
+                return True
         else:
-            return True
-    else:
+            return False
+    except:
         return False
 
 def attemptCallback(callbackIP,dnsPassword,nameserver,verbose,):
@@ -207,7 +211,6 @@ def setupGateways(dhclientFile,ethernetInterface,ethernetUp,gatewayWifi,successf
     writeFile('/opt/breakout/logs/tunnels.txt',time.strftime("%b %-d %H:%M:%S"),ethernetUp,gatewayWifi,successfulConnection)
 
 def setupAutoTunnel(checkSSHLOC,gatewayWifi,PWD,sshuser,tunnelIP,tunnelPort,tunnelType,):
-    print G+"[+] Setting up remote tunnel back to this device"+W
     shutil.copy(PWD+'/lib/checkSSH.bak', checkSSHLOC)
     replaceText(checkSSHLOC,'SET_IP',tunnelIP)
     replaceText(checkSSHLOC,'SET_PORT',tunnelPort)
@@ -218,20 +221,73 @@ def setupAutoTunnel(checkSSHLOC,gatewayWifi,PWD,sshuser,tunnelIP,tunnelPort,tunn
         with open('/etc/crontab', "a") as file:
             print G+"[+] Added SSH to try two minute in /etc/crontab"+W
             file.write("*/2 * * * * root bash %s > /dev/null 2>&1 \n" %(checkSSHLOC))
+    print G+"[+] Setup remote tunnel configuration file"+W
 
-def main(aggressive,callbackIP,dnsPassword,isPi,nameserver,PWD,sshuser,tunnel,verbose,):
-    checkSSHLOC=PWD+'/lib/checkSSH.sh'
-    dhclientFile = '/var/lib/dhcp/dhclient.leases'
+def checkInterfaces(currentSSID):
     ethernetUp = True
-    successfulConnection = False
-    timeout='30 min'
+    wirelessUp = False
 
     interface_list = netifaces.interfaces()
     # Get Ethernet Interfaces
     for interface in interface_list:
         if interface.startswith('e'):
+
             ethernetUp = is_interface_up(interface)
             ethernetInterface = interface
+
+        if "NOT CONNECTED" not in currentSSID and interface.startswith('w'):
+            try:
+                attempt = subprocess.check_output('timeout 10 sudo dhclient %s 2>&1' %(interface), shell=True)
+                wirelessUp = is_interface_up(interface)
+            except:
+                print R+"[!] Ignoring SSID %s as no DHCP Address issued." %(currentSSID)+W
+                with open('/opt/breakout/configs/ignore_ssid','a') as file:
+                    file.write('%s\n' %(currentSSID))
+                    os.system('sudo iwconfig %s essid any' %(interface,))
+
+    return ethernetUp,ethernetInterface,wirelessUp
+
+def currentSSHTunnel(checkSSHLOC,isPi,ethernetUp,gatewayWifi,successfulConnection,):
+    tunnelOpen = True
+
+    if os.path.isfile(checkSSHLOC):
+        # Extract callback IP
+        with open (checkSSHLOC,'r') as file:
+            for line in file:
+                if "callbackIP=" in line:
+                    callbackSSHIP = line[12:-2]
+
+            if checkSSHStatus(callbackSSHIP):
+                sshIP = subprocess.check_output('sudo netstat -tnpa | grep \'ESTABLISHED.*ssh \' | grep -v \"127.0.0.1\" | awk \'{ print $4 }\' | cut -f1 -d\':\' | uniq', shell=True, stderr=subprocess.STDOUT)
+                print G+"[+] Tunnel already open and working on %s" %(sshIP)+W
+
+                if isPi:
+                    # Make the power LED Flash to show the connection is active to C&C
+                    os.system("sudo sh -c 'echo timer >/sys/class/leds/led1/trigger'")
+
+                successfulConnection = True
+                writeFile('/opt/breakout/logs/tunnels.txt',time.strftime("%b %-d %H:%M:%S"),ethernetUp,gatewayWifi,successfulConnection)
+            else:
+                tunnelOpen = False
+    else:
+        tunnelOpen = False
+
+    return tunnelOpen
+
+def main(aggressive,callbackIP,currentSSID,dnsPassword,isPi,nameserver,PWD,sshuser,tunnel,verbose,):
+    checkSSHLOC=PWD+'/lib/checkSSH.sh'
+    dhclientFile = '/var/lib/dhcp/dhclient.leases'
+    successfulConnection = False
+    timeout='30 min'
+
+    ethernetUp,ethernetInterface,wirelessUp=checkInterfaces(currentSSID)
+
+    if ethernetUp == False and wirelessUp == False:
+        print R+"[!] No Interface is up."+W
+        if isPi:
+            # Reset Heartbeat
+            os.system("sudo sh -c 'echo input >/sys/class/leds/led1/trigger'")
+        quit()
 
     # Check if Gateway as been set
     try:
@@ -242,18 +298,7 @@ def main(aggressive,callbackIP,dnsPassword,isPi,nameserver,PWD,sshuser,tunnel,ve
     except:
         gatewayWifi = False
 
-    if os.path.isfile(checkSSHLOC) and checkSSHStatus():
-        sshIP = subprocess.check_output('sudo netstat -tnpa | grep \'ESTABLISHED.*ssh \' | grep -v \"127.0.0.1\" | awk \'{ print $4 }\' | cut -f1 -d\':\' | uniq', shell=True, stderr=subprocess.STDOUT)
-        print G+"[+] Tunnel already open and working on %s" %(sshIP)+W
-
-        if isPi:
-            # Make the power LED Flash to show the connection is active to C&C
-            os.system("sudo sh -c 'echo timer >/sys/class/leds/led1/trigger'")
-
-        successfulConnection = True
-        writeFile('/opt/breakout/logs/tunnels.txt',time.strftime("%b %-d %H:%M:%S"),ethernetUp,gatewayWifi,successfulConnection)
-
-    else:
+    if not currentSSHTunnel(checkSSHLOC,isPi,ethernetUp,gatewayWifi,successfulConnection,):
         # Check which Gateway to use Ethernet or WiFi
         setupGateways(dhclientFile,ethernetInterface,ethernetUp,gatewayWifi,successfulConnection,timeout,)
 
@@ -277,13 +322,16 @@ def main(aggressive,callbackIP,dnsPassword,isPi,nameserver,PWD,sshuser,tunnel,ve
                 print R+"[!] Quick check failed, Port 22 not accessible."+W
             check_ports(aggressive,verbose,)
 
-            # Try incase nothing returned as there is no possible tunnel
-            try:
-                tunnelIP,tunnelPort,tunnelType=attemptCallback(callbackIP,dnsPassword,nameserver,verbose,)
-            except:
-                print R+'[!] Tunnel not possible, as no possible tunnels to the callback server could be found'+W
-                tunnel = False
-                pass
+            if callbackIP and nameserver == None:
+                print R+"[x] Unable to create tunnel as no nameserver or callback IP was provided."
+            else:
+                # Try incase nothing returned as there is no possible tunnel
+                try:
+                    tunnelIP,tunnelPort,tunnelType=attemptCallback(callbackIP,dnsPassword,nameserver,verbose,)
+                except:
+                    print R+'[!] Tunnel not possible, as no possible tunnels to the callback server could be found'+W
+                    tunnel = False
+                    pass
 
         if tunnel:
             setupAutoTunnel(checkSSHLOC,gatewayWifi,PWD,sshuser,tunnelIP,tunnelPort,tunnelType,)
