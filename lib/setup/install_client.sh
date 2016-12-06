@@ -34,7 +34,7 @@ function setup {
     
     # Install PKG #
     export LC_ALL=C
-    for installpkg in git build-essential python-pip python-scapy tcpdump dnsutils wireless-tools wpasupplicant nmap ssh nload htop traceroute ntpdate
+    for installpkg in git build-essential python-pip python-scapy tcpdump dnsutils wireless-tools wpasupplicant nmap ssh nload htop traceroute ntpdate zlib1g-dev
     do
         checkinstalled=$(dpkg-query -l | grep ${installpkg})
         if [ "" == "${checkinstalled}" ]; then
