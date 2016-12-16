@@ -18,7 +18,7 @@ function getopentunnels {
         for processid in ${sshProcesses}
         do
             ipAddr=$(netstat -tnpa | grep 'sshd:' | grep '*' | grep '127.0.0.1' | grep ${processid} | awk '{print $4}')
-            username=$(ps auxwww | grep -v 'grep' | grep ${processid} | awk '{print $12}')
+            username=$(ps auxwww | grep -v 'grep' | grep ${processid} | grep sshd: | awk '{print $12}')
             usernameComment=$(grep ${username} /etc/passwd | cut -d':' -f5)
             sshtunneluptime=$(ps -eo pid,etime | grep ${processid} | awk '{print $2}')
             #echo "[+] Successful reverse shell by" ${username}"("${usernameComment}") on" ${ipAddr}" up for" ${sshtunneluptime}
