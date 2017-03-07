@@ -22,6 +22,7 @@ def attemptWiFiConnect(ssidName,wirelessInterface):
         os.system('sudo ifconfig %s up' %(wirelessInterface,))
         # Allow the interface to come backup
         time.sleep(5)
+        os.system('sudo dhclient %s -r > /dev/null 2>&1' %(wirelessInterface,))
         os.system('sudo iwconfig %s essid "%s"' %(wirelessInterface,ssidName,))
 
         # Timeout if DHCP doesn't work
