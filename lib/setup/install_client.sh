@@ -25,6 +25,10 @@ function setup {
       NORMAL=""
     fi
 
+    # Set Locale
+    sudo locale-gen "en_US.UTF-8"
+    sudo dpkg-reconfigure -f noninteractive locales
+
     #Disable SSH LastLogin Message
     sudo sed -i "s/PrintLastLog .*/PrintLastLog no/1" /etc/ssh/sshd_config
     sudo service ssh restart
