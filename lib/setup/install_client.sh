@@ -31,6 +31,9 @@ function setup {
 
     #Disable Default Ubuntu SSH MOTD
     sudo chmod -x /etc/update-motd.d/* 2>/dev/null
+
+    # Reduce wait time for network interface to be up
+	sudo sed -i 's|TimeoutStartSec=5min|TimeoutStartSec=60sec|g' /lib/systemd/system/networking.service
     
     # Install PKG #
     export LC_ALL=C
