@@ -179,8 +179,10 @@ def defaultRoute(interface,dhclientFile):
         print R+'[!] DHCP Client file %s not found for interface %s. Possible not connected to any WiFi.' %(dhclientFile,interface,)+W
 
 def is_interface_up(interface):
-    addr = netifaces.ifaddresses(interface)
-    return netifaces.AF_INET in addr
+    if "down" in subprocess.check_output('cat /sys/class/net/%s/operstate' %(interface),shell='True'):
+        return False
+    else:
+        return True
 
 def setupGateways(dhclientFile,ethernetInterface,ethernetUp,gatewayWifi,successfulConnection,timeout,):
     #Create file if not exist
