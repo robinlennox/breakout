@@ -27,7 +27,7 @@ function main {
     
     # Install PKG #
     apt-get update
-    apt-get upgrade
+    apt-get -y upgrade
     for installpkg in git build-essential libz-dev
     do
         checkinstalled=$(dpkg-query -l | grep ${installpkg})
