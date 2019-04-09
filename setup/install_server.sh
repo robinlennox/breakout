@@ -37,9 +37,9 @@ function main {
         fi
     done
 
-    cp /etc/ssh/sshd_config /etc/ssh/sshd_config_orig
     sed -Ei 's/#Port 22/Port 22/' /etc/ssh/sshd_config
     sed -Ei 's/#ListenAddress 0.0.0.0/ListenAddress 0.0.0.0/' /etc/ssh/sshd_config
+    cp /etc/ssh/sshd_config /etc/ssh/sshd_config_orig
 
     echo "1" | tee /proc/sys/net/ipv4/icmp_echo_ignore_all
     wget https://github.com/wangyu-/udp2raw-tunnel/releases/download/20181113.0/udp2raw_binaries.tar.gz -P /tmp && \
