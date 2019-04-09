@@ -144,14 +144,15 @@ def attemptCallback(callbackIP, tunnelPassword, nameserver, verbose, ):
         localPort = 3322
         tunnelPort = 4001
         listenPort = 8856
-        # status = setupNonTCPTunnel(status,callbackIP,nameserver,tunnelIP,tunnelType,tunnelPort,localPort,listenPort,verbose,)
+        status = setupNonTCPTunnel(status, callbackIP, nameserver, tunnelIP,
+                                   tunnelType, tunnelPort, localPort, listenPort, tunnelPassword, verbose,)
 
         if status is False:
             tunnelType = 'udp'
             tunnelPort = 4003
             listenPort = 8857
-            status = setupNonTCPTunnel(status, callbackIP, nameserver, tunnelIP, tunnelType, tunnelPort, localPort,
-                                       listenPort, tunnelPassword, verbose, )
+            status = setupNonTCPTunnel(status, callbackIP, nameserver, tunnelIP,
+                                       tunnelType, tunnelPort, localPort, listenPort, tunnelPassword, verbose, )
 
         if status is False:
             tunnelType = 'icmp'
@@ -384,7 +385,7 @@ def initialiseTunnel(aggressive, callbackIP, currentSSID, tunnelPassword, isPi, 
         command = "killall ssh > /dev/null 2>&1"
         subprocess.Popen(command.split(), stdout=subprocess.PIPE,
                          stderr=subprocess.PIPE)
-        callbackPort = 22
+        callbackPort = 2212
         tunnelIP = callbackIP
         tunnelPort = callbackPort
         tunnelType = 'Open Port'
