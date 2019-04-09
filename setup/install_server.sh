@@ -27,6 +27,7 @@ function main {
     
     # Install PKG #
     apt-get update
+    apt-get upgrade
     for installpkg in git build-essential libz-dev
     do
         checkinstalled=$(dpkg-query -l | grep ${installpkg})
@@ -56,9 +57,9 @@ function main {
     #Install Directory
     BREAKOUT_DIRECTORY='/opt/breakout'
     mkdir ${BREAKOUT_DIRECTORY}
-    wget https://raw.githubusercontent.com/robinlennox/breakout/master/lib/server/breakoutTunnels.sh -P ${BREAKOUT_DIRECTORY}
-    wget https://raw.githubusercontent.com/robinlennox/breakout/master/lib/server/tunnel_server.sh -P ${BREAKOUT_DIRECTORY}
-    wget https://raw.githubusercontent.com/robinlennox/breakout/master/lib/server/open_ports.sh -P ${BREAKOUT_DIRECTORY}
+    wget https://raw.githubusercontent.com/robinlennox/breakout/master/server/breakoutTunnels.sh -P ${BREAKOUT_DIRECTORY}
+    wget https://raw.githubusercontent.com/robinlennox/breakout/master/server/tunnel_server.sh -P ${BREAKOUT_DIRECTORY}
+    wget https://raw.githubusercontent.com/robinlennox/breakout/master/server/open_ports.sh -P ${BREAKOUT_DIRECTORY}
 
     #Make link to script
     chmod +x /opt/breakout/breakoutTunnels.sh
