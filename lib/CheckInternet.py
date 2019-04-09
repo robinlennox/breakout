@@ -1,11 +1,13 @@
 #!/usr/bin/env python
 # By Robin Lennox - twitter.com/robberbear
 
-import urllib2
+import requests
+
 
 def internetStatus():
     try:
-        response=urllib2.urlopen('http://google.com',timeout=1)
+
+        requests.get('https://www.google.com', timeout=1)
         return True
-    except urllib2.URLError as err: pass
-    return False
+    except:
+        return False

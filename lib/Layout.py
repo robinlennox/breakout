@@ -3,32 +3,34 @@
 
 import sys
 
-def banner():
-    #Import Colour Scheme
-    G,Y,B,R,W = colour()
 
-    print """%s
+def banner():
+    # Import Colour Scheme
+    G, Y, B, R, W = colour()
+
+    print("""{0}
                  ____                 _               _
                 |  _ \               | |             | |
                 | |_) |_ __ ___  __ _| | _____  _   _| |_
                 |  _ <| '__/ _ \/ _` | |/ / _ \| | | | __|
                 | |_) | | |  __/ (_| |   < (_) | |_| | |_
-                |____/|_|  \___|\__,_|_|\_\___/ \__,_|\__|%s%s
+                |____/|_|  \___|\__,_|_|\_\___/ \__,_|\__|{1}{2}
                 # Coded By Robin Lennox - @robberbear
-    """%(R,W,Y)
+    """.format(R, W, Y))
+
 
 def colour():
-    #Check if we are running this on windows platform
+    # Check if we are running this on windows platform
     is_windows = sys.platform.startswith('win')
 
-    #Console Colors
+    # Console Colors
     if is_windows:
-        G = Y = B = R = W = G = Y = B = R = W = '' #use no terminal colors on windows
+        G = Y = B = R = W = G = Y = B = R = W = ''  # use no terminal colors on windows
     else:
-        G = '\033[92m' #green
-        Y = '\033[93m' #yellow
-        B = '\033[94m' #blue
-        R = '\033[91m' #red
-        W = '\033[0m'  #white
+        G = '\033[92m'  # green
+        Y = '\033[93m'  # yellow
+        B = '\033[94m'  # blue
+        R = '\033[91m'  # red
+        W = '\033[0m'  # white
 
-        return G,Y,B,R,W
+        return G, Y, B, R, W
