@@ -98,7 +98,7 @@ clientDesc=$3
 if [ -z "${sshLogin}" ] || [ -z "${sshPort}" ] || [ -z "${clientDesc}" ]; then
   echo "[+] Installing only client packages"
   echo "[x] For auto tunnel to work a port needs to be specified. E.G bash $(basename -- "$0") root@1.2.3.4 22 \"Dropped at Office 123\""
-  setup
+  banner
   exit 1
 fi
 
