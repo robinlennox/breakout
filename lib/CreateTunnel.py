@@ -385,7 +385,7 @@ def initialiseTunnel(aggressive, callbackIP, currentSSID, tunnelPassword, isPi, 
         command = "killall ssh > /dev/null 2>&1"
         subprocess.Popen(command.split(), stdout=subprocess.PIPE,
                          stderr=subprocess.PIPE)
-        callbackPort = 2212
+        callbackPort = 22
         tunnelIP = callbackIP
         tunnelPort = callbackPort
         tunnelType = 'Open Port'
