@@ -118,10 +118,10 @@ def callbackTCP(callbackIP, config, sshuser, tunnelPassword, nameserver, verbose
             for attemptPort in callbackPort:
                 count = 0
                 stopCount = 100
+                if verbose:
+                    print(
+                        Y + "[*] Calling back to IP {0} on port {1}".format(callbackIP, attemptPort,) + W)
                 while (count < stopCount and status is False):
-                    if verbose:
-                        print(
-                            Y + "[*] Calling back to IP {0} on port {1}".format(callbackIP, attemptPort,) + W)
                     if openPort(attemptPort, callbackIP):
                         count = stopCount
                         if checkTunnel(callbackIP, attemptPort):
@@ -129,6 +129,7 @@ def callbackTCP(callbackIP, config, sshuser, tunnelPassword, nameserver, verbose
                             successMessage(callbackIP, attemptPort, sshuser)
                             status = True
                             tunnelType = 'Open Port'
+                            return callbackIP, attemptPort, tunnelType, status
                         else:
                             print(R + "\n[x] Port {0} open on IP {1} but unable to connect via SSH".format(
                                 attemptPort, callbackIP,) + W)
@@ -376,6 +377,27 @@ def checkSSH(checkSSHLOC):
         print(Y + "[*] Setting up SSH" + W)
         time.sleep(10)
 
+def quickScan(callbackPort,callbackIP,config, sshuser, verbose):
+    status = False
+    quickScanStatus = config.getboolean('SCAN','QUICK')
+    if quickScanStatus is True:
+        if openPort(callbackPort, callbackIP) and checkTunnel(callbackIP, callbackPort):
+            if verbose:
+                print(
+                    Y + "[*] Quick check if port {0} is accessible.".format(callbackPort) + W)
+            print(G + "[+] SSH tunnel possible!" + W)
+            successMessage(callbackIP, callbackPort, sshuser)
+            status = True
+        else:
+            if verbose:
+                print(
+                    R + "[!] Quick check failed, Port {0} not accessible.".format(callbackPort) + W)
+    else:
+        if verbose:
+            print(W + "[!] Config: Skipping Quick Scan" + W)
+    
+    return status
+
 def initialiseTunnel(aggressive, callbackIP, config, currentSSID, tunnelPassword, isPi, nameserver, sshuser, tunnel, verbose,):
     checkSSHLOC = '/opt/breakout/lib/checkSSH.sh'
     successfulConnection = False
@@ -444,31 +466,10 @@ def initialiseTunnel(aggressive, callbackIP, config, currentSSID, tunnelPassword
             setupAutoTunnel(checkSSHLOC, gatewayWifi, sshuser,
                             tunnelIP, tunnelPort, tunnelType, )
             attemptSSHTunnel = subprocess.check_output(
-                'bash /opt/breakout/lib/checkSSH.sh', shell=True).decode('utf-8')
+                'bash {0}'.format(checkSSHLOC), shell=True).decode('utf-8')
             # Allow time for tunnel to start over low latancy.
-            waitTime = 30
+            waitTime = config.getint('TUNNEL','WAITTIME')
             print(
                 Y + "[*] Waiting {0} seconds for tunnel to start".format(waitTime) + W)
             time.sleep(waitTime)
             print(G + "{0}".format(attemptSSHTunnel) + W)
-
-def quickScan(callbackPort,callbackIP,config, sshuser, verbose):
-    status = False
-    quickScanStatus = config.getboolean('SCAN','QUICK')
-    if quickScanStatus is True:
-        if openPort(callbackPort, callbackIP) and checkTunnel(callbackIP, callbackPort):
-            if verbose:
-                print(
-                    Y + "[*] Quick check if port {0} is accessible.".format(callbackPort) + W)
-            print(G + "[+] SSH tunnel possible!" + W)
-            successMessage(callbackIP, callbackPort, sshuser)
-            status = True
-        else:
-            if verbose:
-                print(
-                    R + "[!] Quick check failed, Port {0} not accessible.".format(callbackPort) + W)
-    else:
-        if verbose:
-            print(W + "[!] Config: Skipping Quick Scan" + W)
-    
-    return status
