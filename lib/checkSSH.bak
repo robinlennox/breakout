@@ -10,8 +10,8 @@ callbackIP='SET_IP'
 callbackPort='SET_PORT'
 tunnelType='TUNNEL_TYPE'
 gatewayWifi='GATEWAY_WIFI'
-checkSSHTunnel=$(netstat -tnpa | grep 'ESTABLISHED.*ssh' | grep ${callbackIP})
-checkRunningState=$(ps command | grep "^bash" | grep checkSSH.sh | wc -l)
+checkSSHTunnel=$(netstat -tnpa | grep 'ESTABLISHED.*ssh' | grep ${callbackIP} 2>&1)
+checkRunningState=$(ps command | grep "^bash" | grep checkSSH.sh | wc -l 2>&1)
 checkPortOpen=$(nc -z -v -w10 ${callbackIP} ${callbackPort} 2>&1)
 isPi='/sys/class/leds/led1/trigger'
 
