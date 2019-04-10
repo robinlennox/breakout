@@ -11,6 +11,11 @@ import wifi
 from lib.ScriptManagement import checkRunningState
 from lib.Layout import colour
 
+import configparser
+
+config = configparser.ConfigParser()
+config.read('/opt/breakout/lib/config.ini')
+
 # Import Colour Scheme
 G, Y, B, R, W = colour()
 
@@ -165,4 +170,7 @@ def main():
 
 
 if __name__ == '__main__':
-    main()
+    if config.getboolean('DEFAULT','CONNECTWIFI') is True:
+        main()
+    else:
+        print(W + "[!] Config: Skipping Wifi Auto Connect" + W)

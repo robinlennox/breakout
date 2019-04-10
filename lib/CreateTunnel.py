@@ -14,7 +14,6 @@ from lib.PortCheck import check_port, portquiz_scan, traceroute_port_check, open
 from lib.ProtocolCheck import check_icmp
 from lib.SetupTunnel import openPort, checkTunnel, udp2rawTunnel
 
-
 # Import Colour Scheme
 G, Y, B, R, W = colour()
 
@@ -27,10 +26,12 @@ def replaceText(filename, origText, replaceText, ):
     f.close()
 
 
-def successMessage(ipAddr, port):
+def successMessage(ipAddr, port, sshuser):
     print(W + "------------------------------" + W)
-    print(
-        W + "[!] Port forward using: ssh -f -N -D 8123 root@{0} -p{1}".format(ipAddr, port,) + W)
+    if sshuser:
+        print(W + "[!] Port forward using: ssh -f -N -D 8123 {0}@{1} -p{2} -i /home/{0}/.ssh/id_rsa".format(sshuser, ipAddr, port,) + W)
+    else:
+        print(W + "[!] Port forward example: ssh -f -N -D 8123 root@{0} -p{1}".format(ipAddr, port,) + W)
     print(W + "[!] Check it's working using: curl --proxy socks5h://localhost:8123 http://google.com" + W)
     print(W + "------------------------------" + W)
 
@@ -41,23 +42,32 @@ def getInterfaces():
     return filter(lambda x: 'wl' in x, interface_list)
 
 
-def check_ports(aggressive, verbose, ):
+def check_ports(aggressive, config, verbose, ):
     global callbackPort
     callbackPort = []
 
-    print(B + "\n[-] Running test for commonly open ports." + W)
+    if config.getboolean('SCAN','PORTQUIZ') is True:
+        print(B + "\n[-] Running test for commonly open ports." + W)
 
-    if verbose:
-        print(Y + "[*] Checking for open ports using portquiz.net" + W)
-    check_port(portquiz_scan, aggressive, verbose, )
+        if verbose:
+            print(Y + "[*] Checking for open ports using portquiz.net" + W)
+        
+        check_port(aggressive, config, portquiz_scan, verbose, )
+    else:
+        if verbose:
+            print(W + "[!] Config: Skipping portquiz.net scan" + W)
 
     # Portquiz might be blocked so try traceroute
     if not openPorts:
-        if verbose:
-            print(R + "[*] portquiz.net returned no open ports" + W)
-            print(B + "\n[-] Running test for commonly open ports." + W)
-            print(Y + "[*] Checking for open ports using traceroute" + W)
-        check_port(traceroute_port_check, aggressive, verbose, )
+        if config.getboolean('SCAN','TRACEROUTE') is True:
+            if verbose:
+                print(R + "[*] portquiz.net returned no open ports" + W)
+                print(B + "\n[-] Running test for commonly open ports." + W)
+                print(Y + "[*] Checking for open ports using traceroute" + W)
+            check_port(aggressive, config, traceroute_port_check, verbose, )
+        else:
+            if verbose:
+                print(W + "[!] Config: Skipping traceroute scan" + W)
 
     if openPorts:
         callbackPort = openPorts
@@ -66,8 +76,7 @@ def check_ports(aggressive, verbose, ):
         print(R + "[x] No open port found." + W)
 
     if possiblePorts:
-        print(
-            Y + "[+] Possible open port/s: {0}".format(', '.join(possiblePorts)) + W)
+        print(Y + "[*] {0} possible port/s found".format(len(possiblePorts)) + W)
 
 
 def checkSSHStatus(callbackIP, callbackSSHPort):
@@ -87,7 +96,7 @@ def checkSSHStatus(callbackIP, callbackSSHPort):
                             str(re.findall(r"(?<=callbackPort=')(.*)(?=')", line))[2:-2])
 
             print(
-                B + "[*] Check SSH port {0} is open on {1}".format(port, ip, ) + W)
+                Y + "[*] Checking existing SSH port {0} is open on {1}".format(port, ip, ) + W)
             if not openPort(port, ip) or not checkTunnel(ip, port):
                 return False
             else:
@@ -99,30 +108,30 @@ def checkSSHStatus(callbackIP, callbackSSHPort):
         return False
 
 
-def attemptCallback(callbackIP, tunnelPassword, nameserver, verbose, ):
-    print(B + "\n[-] Attempting to create tunnel." + W)
-    if callbackIP:
-        status = True
-        # TCP Tunnel
-        if callbackPort:
+def callbackTCP(callbackIP, config, sshuser, tunnelPassword, nameserver, verbose, ):
+    status = False
+    tunnelType = None
+    attemptPort = None
+    if callbackPort:
+        print(B + "\n[-] Attempting to create TCP tunnel." + W)
+        if config.getboolean('TUNNEL','TCP') is True:
             for attemptPort in callbackPort:
                 count = 0
                 stopCount = 100
-                if verbose:
-                    print(
-                        Y + "[*] Calling back to IP {0} on port {1}".format(callbackIP, attemptPort,) + W)
-                while (count < stopCount):
+                while (count < stopCount and status is False):
+                    if verbose:
+                        print(
+                            Y + "[*] Calling back to IP {0} on port {1}".format(callbackIP, attemptPort,) + W)
                     if openPort(attemptPort, callbackIP):
                         count = stopCount
                         if checkTunnel(callbackIP, attemptPort):
                             print(G + "[+] SSH is Open" + W)
-                            successMessage(callbackIP, attemptPort)
-                            return callbackIP, attemptPort, 'Open Port'
+                            successMessage(callbackIP, attemptPort, sshuser)
                             status = True
+                            tunnelType = 'Open Port'
                         else:
                             print(R + "\n[x] Port {0} open on IP {1} but unable to connect via SSH".format(
                                 attemptPort, callbackIP,) + W)
-                            status = False
                     else:
                         if verbose:
                             print(
@@ -132,66 +141,83 @@ def attemptCallback(callbackIP, tunnelPassword, nameserver, verbose, ):
                         if count == stopCount:
                             print(R + "\n[x] Port {0} not open on IP {1} after {2} attempts".format(
                                 attemptPort, callbackIP, stopCount) + W)
-                            status = False
         else:
-            print(
-                R + "\n[x] Can't attempt TCP Tunnel, no ports found open on IP {0}\n".format(callbackIP,) + W)
-            status = False
+            if verbose:
+                print(W + "[!] Config: Skipping TCP tunnel" + W)
+    else:
+        print(
+            R + "[x] Can't attempt TCP Tunnel, no ports found open on IP {0}".format(callbackIP,) + W)
 
+    return callbackIP, attemptPort, tunnelType, status
+
+def callbackNonTCP(callbackIP, config, sshuser, tunnelPassword, nameserver, verbose, ):
+    print(B + "\n[-] Attempting to create Non TCP tunnel." + W)
+    tunnelIP = '127.0.0.1'
+    localPort = 3322
+    tunnelType = None
+    status = False
+    if config.getboolean('TUNNEL','FAKETCP') is True:
         # Non TCP Tunnels
         tunnelType = 'faketcp'
-        tunnelIP = '127.0.0.1'
-        localPort = 3322
         tunnelPort = 4001
         listenPort = 8856
         status = setupNonTCPTunnel(status, callbackIP, nameserver, tunnelIP,
-                                   tunnelType, tunnelPort, localPort, listenPort, tunnelPassword, verbose,)
+                                tunnelType, tunnelPort, localPort, listenPort, sshuser, tunnelPassword, verbose,)
+    else:
+        if verbose:
+            print(W + "[!] Config: Skipping fakeTCP tunnel" + W)
 
-        if status is False:
+    if status is False:
+        if config.getboolean('TUNNEL','UDP') is True:
             tunnelType = 'udp'
             tunnelPort = 4003
             listenPort = 8857
             status = setupNonTCPTunnel(status, callbackIP, nameserver, tunnelIP,
-                                       tunnelType, tunnelPort, localPort, listenPort, tunnelPassword, verbose, )
+                                    tunnelType, tunnelPort, localPort, listenPort, sshuser, tunnelPassword, verbose, )
+        else:
+            if verbose:
+                print(W + "[!] Config: Skipping UDP tunnel" + W)
 
-        if status is False:
-            tunnelType = 'icmp'
-            tunnelPort = 4000
-            listenPort = 8855
-            status = setupNonTCPTunnel(status, callbackIP, nameserver, tunnelIP, tunnelType, tunnelPort, localPort,
-                                       listenPort, tunnelPassword, verbose, )
+    if status is False:
+        if config.getboolean('TUNNEL','ICMP') is True:
+            if check_icmp():
+                if verbose:
+                    print(G + "[+] ICMP is enabled" + W)
+                tunnelType = 'icmp'
+                tunnelPort = 4000
+                listenPort = 8855
+                status = setupNonTCPTunnel(status, callbackIP, nameserver, tunnelIP, tunnelType, tunnelPort, localPort,
+                                        listenPort, sshuser, tunnelPassword, verbose, )
+            else:
+                print(
+                    R + "[x] Can't attempt {0} Tunnel, {0} is disabled\n".format(tunnelType) + W)
+                status = False
+        else:
+            if verbose:
+                print(W + "[!] Config: Skipping ICMP tunnel" + W)
 
-    return tunnelIP, localPort, tunnelType
+    return tunnelIP, localPort, tunnelType, status
 
 
-def setupNonTCPTunnel(status, callbackIP, nameserver, tunnelIP, tunnelType, tunnelPort, localPort, listenPort, tunnelPassword, verbose, ):
+def setupNonTCPTunnel(status, callbackIP, nameserver, tunnelIP, tunnelType, tunnelPort, localPort, listenPort, sshuser, tunnelPassword, verbose, ):
     if not status:
         print(
             Y + "[*] Trying a Udp2raw-tunnel using {0}.".format(tunnelType) + W)
-        if check_icmp():
-            if verbose:
-                print(G + "[+] {0} is enabled".format(tunnelType) + W)
-
-            if udp2rawTunnel(callbackIP, tunnelIP, tunnelType, tunnelPort, localPort, listenPort, tunnelPassword, verbose, ):
-                if checkTunnel(tunnelIP, tunnelPort):
-                    print(
-                        G + "[+] A Udp2raw-tunnel {0} tunnel can be setup!".format(tunnelType) + W)
-                    print(
-                        B + "[-] An {0} Tunnel is not as fast as a TCP Tunnel".format(tunnelType) + W)
-                    successMessage(tunnelIP, tunnelPort)
-                    return tunnelIP, tunnelPort, 'ICMP'
-                    status = True
-                else:
-                    print(
-                        R + "[x] {0} Enabled but unable to create {0} Tunnel".format(tunnelType) + W)
-                    status = False
+        if udp2rawTunnel(callbackIP, tunnelIP, tunnelType, tunnelPort, localPort, listenPort, tunnelPassword, verbose, ):
+            if checkTunnel(tunnelIP, tunnelPort):
+                print(
+                    G + "[+] A Udp2raw-tunnel {0} tunnel can be setup!".format(tunnelType) + W)
+                print(
+                    B + "[-] An {0} Tunnel is not as fast as a TCP Tunnel".format(tunnelType) + W)
+                successMessage(tunnelIP, tunnelPort, sshuser)
+                status = True
             else:
                 print(
                     R + "[x] {0} Enabled but unable to create {0} Tunnel".format(tunnelType) + W)
                 status = False
         else:
             print(
-                R + "[x] Can't attempt {0} Tunnel, {0} is disabled\n".format(tunnelType) + W)
+                R + "[x] {0} Enabled but unable to create {0} Tunnel".format(tunnelType) + W)
             status = False
 
     return status
@@ -301,10 +327,15 @@ def checkInterfaces(currentSSID, verbose):
     return ethernetUp, ethernetInterface, wirelessUp
 
 
-def currentSSHTunnel(checkSSHLOC, isPi, ethernetUp, gatewayWifi, successfulConnection, ):
+def currentSSHTunnel(checkSSHLOC, config, isPi, ethernetUp, gatewayWifi, successfulConnection,verbose ):
     tunnelOpen = True
+    checkForTunnel = config.getboolean('TUNNEL','CHECKEXISTING')
 
-    if os.path.isfile(checkSSHLOC):
+    if checkForTunnel is False:
+        tunnelOpen = False
+        if verbose:
+            print(W + "[!] Config: Skipping checking existing tunnel" + W)
+    elif os.path.isfile(checkSSHLOC):
         # Extract callback IP
         with open(checkSSHLOC, 'r') as file:
             for line in file:
@@ -333,24 +364,26 @@ def currentSSHTunnel(checkSSHLOC, isPi, ethernetUp, gatewayWifi, successfulConne
 
     return tunnelOpen
 
+def checkSSH(checkSSHLOC):
+    process = subprocess.Popen("rc-status --crashed".split(),
+                            stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    if "sshd" in str(process.communicate()):
+        print(R + "[!] SSH crashed!" + W)
+        subprocess.Popen("rc-service sshd stop && rc-service sshd start".split(), stdout=subprocess.PIPE,
+                        stderr=subprocess.PIPE)
+        subprocess.Popen("bash {0}".format(checkSSHLOC).split(
+        ), stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        print(Y + "[*] Setting up SSH" + W)
+        time.sleep(10)
 
-def initialiseTunnel(aggressive, callbackIP, currentSSID, tunnelPassword, isPi, nameserver, sshuser, tunnel, verbose, ):
+def initialiseTunnel(aggressive, callbackIP, config, currentSSID, tunnelPassword, isPi, nameserver, sshuser, tunnel, verbose,):
     checkSSHLOC = '/opt/breakout/lib/checkSSH.sh'
     successfulConnection = False
     timeout = '30 min'
 
     ethernetUp, ethernetInterface, wirelessUp = checkInterfaces(
         currentSSID, verbose)
-    p = subprocess.Popen("rc-status --crashed".split(),
-                         stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-    if "sshd" in str(p.communicate()):
-        print(R + "[!] SSH crashed!" + W)
-        subprocess.Popen("rc-service sshd stop && rc-service sshd start".split(), stdout=subprocess.PIPE,
-                         stderr=subprocess.PIPE)
-        subprocess.Popen("bash {0}".format(checkSSHLOC).split(
-        ), stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-        print(Y + "[*] Setting up SSH" + W)
-        time.sleep(10)
+    checkSSH(checkSSHLOC)
 
     if ethernetUp == False and wirelessUp == False:
         print(R + "[!] No Interface is up." + W)
@@ -371,7 +404,7 @@ def initialiseTunnel(aggressive, callbackIP, currentSSID, tunnelPassword, isPi, 
     except:
         gatewayWifi = False
 
-    if currentSSHTunnel(checkSSHLOC, isPi, ethernetUp, gatewayWifi, successfulConnection, ) is False:
+    if currentSSHTunnel(checkSSHLOC, config, isPi, ethernetUp, gatewayWifi, successfulConnection, verbose) is False:
         # Check which Gateway to use Ethernet or WiFi
         setupGateways(ethernetInterface, ethernetUp, gatewayWifi,
                       successfulConnection, timeout, )
@@ -385,40 +418,29 @@ def initialiseTunnel(aggressive, callbackIP, currentSSID, tunnelPassword, isPi, 
         command = "killall ssh > /dev/null 2>&1"
         subprocess.Popen(command.split(), stdout=subprocess.PIPE,
                          stderr=subprocess.PIPE)
-        callbackPort = 22
+        callbackPort = config.get('DEFAULT','CALLBACKPORT')
+        
         tunnelIP = callbackIP
         tunnelPort = callbackPort
         tunnelType = 'Open Port'
 
-        if openPort(callbackPort, callbackIP) and checkTunnel(callbackIP, callbackPort):
-            if verbose:
-                print(
-                    Y + "[*] Quick check if port {0} is accessible.".format(callbackPort) + W)
-            print(G + "[+] SSH tunnel possible!" + W)
-            successMessage(callbackIP, callbackPort)
-        else:
-            if verbose:
-                print(
-                    R + "[!] Quick check failed, Port {0} not accessible.".format(callbackPort) + W)
-            check_ports(aggressive, verbose, )
+        tunnelStatus = quickScan(callbackPort,callbackIP,config,sshuser,verbose) 
+        if tunnelStatus is False:
+            check_ports(aggressive, config, verbose, )
 
             if all(v is None for v in [callbackIP, nameserver]):
                 print(
                     Y + "[*] Unable to create tunnel as no nameserver or callback IP was provided." + W)
             else:
-                # Try incase nothing returned as there is no possible tunnel
-                try:
-                    tunnelIP, tunnelPort, tunnelType = attemptCallback(
-                        callbackIP, tunnelPassword, nameserver, verbose, )
-                except Exception as e:
-                    if verbose:
-                        print(e)
-                    print(
-                        R + '[!] Tunnel not possible, as no possible tunnels to the callback server could be found' + W)
-                    tunnel = False
-                    pass
+                tunnelIP, tunnelPort, tunnelType, tunnelStatus = callbackTCP(callbackIP, config, sshuser, tunnelPassword, nameserver, verbose, )
+                if tunnelStatus is False:
+                    tunnelIP, tunnelPort, tunnelType, tunnelStatus = callbackNonTCP(
+                            callbackIP, config, sshuser, tunnelPassword, nameserver, verbose, )
 
-        if tunnel:
+        if tunnelStatus is False:
+            print(R + '[!] Tunnel not possible, as no possible tunnels to the callback server could be found' + W)
+            pass
+        elif tunnel is True:
             setupAutoTunnel(checkSSHLOC, gatewayWifi, sshuser,
                             tunnelIP, tunnelPort, tunnelType, )
             attemptSSHTunnel = subprocess.check_output(
@@ -429,3 +451,24 @@ def initialiseTunnel(aggressive, callbackIP, currentSSID, tunnelPassword, isPi, 
                 Y + "[*] Waiting {0} seconds for tunnel to start".format(waitTime) + W)
             time.sleep(waitTime)
             print(G + "{0}".format(attemptSSHTunnel) + W)
+
+def quickScan(callbackPort,callbackIP,config, sshuser, verbose):
+    status = False
+    quickScanStatus = config.getboolean('SCAN','QUICK')
+    if quickScanStatus is True:
+        if openPort(callbackPort, callbackIP) and checkTunnel(callbackIP, callbackPort):
+            if verbose:
+                print(
+                    Y + "[*] Quick check if port {0} is accessible.".format(callbackPort) + W)
+            print(G + "[+] SSH tunnel possible!" + W)
+            successMessage(callbackIP, callbackPort, sshuser)
+            status = True
+        else:
+            if verbose:
+                print(
+                    R + "[!] Quick check failed, Port {0} not accessible.".format(callbackPort) + W)
+    else:
+        if verbose:
+            print(W + "[!] Config: Skipping Quick Scan" + W)
+    
+    return status

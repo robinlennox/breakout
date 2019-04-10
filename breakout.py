@@ -12,9 +12,13 @@ from lib.IPCheck import getIP
 from lib.Layout import banner, colour
 from lib.ScriptManagement import checkRunningState
 
+import configparser
+
+config = configparser.ConfigParser()
+config.read('/opt/breakout/lib/config.ini')
+
 # Import Colour Scheme
 G, Y, B, R, W = colour()
-
 
 def parser_error(errmsg):
     print("Usage: python {0} [Options] use -h for help".format(sys.argv[0]))
@@ -78,20 +82,24 @@ def args_check():
             R + "[x] Error an nameserver must be entered for DNS callback to work" + W)
         sys.exit(0)
 
-    tunnel = args.tunnel
-    sshuser = ''
-    if tunnel or tunnel is None:
-        passwd = open('/etc/passwd').read()
-        if 'sshuser' in passwd:
-            tunnel = True
-            for line in passwd.splitlines():
-                if "sshuser" in line:
-                    sshuser = line.split(':')[0]
-        else:
-            print(R + "[x] Error: No sshuser!" + W)
-            print(
-                R + "[x] This needs to be setup for the auto tunnel to work" + W)
-            sys.exit(0)
+    if args.tunnel is None:
+        tunnel = True
+    else:
+        tunnel = False
+    sshuser = None
+    passwd = open('/etc/passwd').read()
+    if 'sshuser' in passwd:
+        
+        for line in passwd.splitlines():
+            if "sshuser" in line:
+                sshuser = line.split(':')[0]
+    if tunnel is True and sshuser is not None:
+        tunnel = True
+    elif tunnel is True and sshuser is None:
+        print(R + "[x] Error: No sshuser!" + W)
+        print(
+            R + "[x] This needs to be setup for the auto tunnel to work" + W)
+        sys.exit(0)
 
     # Check Verbosity
     global verbose
@@ -156,11 +164,10 @@ def main():
         print(B + "[-] Auto Tunnel is enabled" + W)
     else:
         pass
-        # banner()
 
     print(G + "[+] On SSID: {0}".format(currentSSID) + W)
     if not os.geteuid() == 0:
-        sys.exit(R + '[!] Script must be run as root\n' + W)
+        sys.exit(R + '[x] Script must be run as root\n' + W)
 
     if verbose:
         print(B + "[-] Verbosity is enabled" + W)
@@ -169,7 +176,7 @@ def main():
         print(B + "[-] Aggressive is enabled" + W)
 
     # Check for open ports and Tunnel
-    initialiseTunnel(aggressive, callbackIP, currentSSID,
+    initialiseTunnel(aggressive, callbackIP, config, currentSSID,
                      tunnelPassword, isPi, nameserver, sshuser, tunnel, verbose, )
 
     if recon:
@@ -177,5 +184,6 @@ def main():
 
 
 if __name__ == "__main__":
-    banner()
+    if config.getboolean('DEFAULT','SHOWBANNER') is True:
+        banner()
     main()
