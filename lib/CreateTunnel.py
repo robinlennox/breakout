@@ -268,11 +268,8 @@ def setupGateways(ethernetInterface, ethernetUp, gatewayWifi, successfulConnecti
     # Create file if not exist
     open("/opt/breakout/logs/tunnels.txt", "a")
     # gatewayWifi = defaultRoute(ethernetInterface)
-    totalAttempts = subprocess.check_output(
-        'awk -v d1="$(date --date="-' + timeout +
-        '" "+%b %_d %H:%M")" -v d2="$(date "+%b %_d %H:%M")" \'$0 > d1 && $0 < d2 || $0 ~ d2\' /opt/breakout/logs/tunnels.txt | grep Successful_Connection=False | wc -l',
-        shell=True, stderr=subprocess.STDOUT).rstrip().lstrip()
-    if ethernetUp and totalAttempts and int(totalAttempts) > 20:
+    totalAttempts = subprocess.check_output('awk -v d1="$(date -d@"$(( $(date +%s)-{0}))" "+%b %_d %H:%M")" -v d2="$(date "+%b %_d %H:%M")" \'$0 > d1 && $0 < d2 || $0 ~ d2\' /opt/breakout/logs/tunnels.txt | grep Successful_Connection=False | wc -l'.format(timeout),shell=True, stderr=subprocess.STDOUT).decode('utf-8').rstrip().lstrip()
+    if ethernetUp and int(totalAttempts) > 20:
         print(R + "[!] Unable to tunnel resetting routing tables and rebooting" + W)
 
         # Clear routing table and applying default settings.
@@ -401,7 +398,8 @@ def quickScan(callbackPort,callbackIP,config, sshuser, verbose):
 def initialiseTunnel(aggressive, callbackIP, config, currentSSID, tunnelPassword, isPi, nameserver, sshuser, tunnel, verbose,):
     checkSSHLOC = '/opt/breakout/lib/checkSSH.sh'
     successfulConnection = False
-    timeout = '30 min'
+    #30 Mins
+    timeout = '1800'
 
     ethernetUp, ethernetInterface, wirelessUp = checkInterfaces(
         currentSSID, verbose)
@@ -440,7 +438,7 @@ def initialiseTunnel(aggressive, callbackIP, config, currentSSID, tunnelPassword
         command = "killall ssh > /dev/null 2>&1"
         subprocess.Popen(command.split(), stdout=subprocess.PIPE,
                          stderr=subprocess.PIPE)
-        callbackPort = config.get('DEFAULT','CALLBACKPORT')
+        callbackPort = config.get('SCAN','CALLBACKPORT')
         
         tunnelIP = callbackIP
         tunnelPort = callbackPort
