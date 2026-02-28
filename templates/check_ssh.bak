@@ -11,7 +11,7 @@ callbackPort='SET_PORT'
 tunnelType='TUNNEL_TYPE'
 gatewayWifi='GATEWAY_WIFI'
 checkSSHTunnel=$(ss -ntpa | grep 'ESTAB.*"ssh"' | grep ${callbackIP} 2>&1)
-checkRunningState=$(ps command | grep "^bash" | grep check_ssh.sh | wc -l 2>&1)
+checkRunningState=$(ps -eo command | grep "^bash" | grep check_ssh.sh | wc -l 2>&1)
 checkPortOpen=$(nc -z -v -w10 ${callbackIP} ${callbackPort} 2>&1)
 isPi='/sys/class/leds/led1/trigger'
 

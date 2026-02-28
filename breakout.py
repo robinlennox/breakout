@@ -12,11 +12,11 @@ import sys
 import time
 from typing import Optional, Tuple
 
-from lib.create_tunnel import initialise_tunnel
+from lib.tunnel import initialise_tunnel
 from lib.ip_check import get_ip
 from lib.layout import banner, colour
 from lib.script_management import check_running_state
-from lib.utils import get_config, setup_logging
+from lib.utils import get_config, get_ssid, setup_logging
 
 config = get_config()
 
@@ -45,7 +45,7 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument(
         "-p", "--password", type=str, default=None,
-        help="Password for UDP tunnel (default: from config.ini)",
+        help="Password for tunnel (default: from config.ini)",
     )
     parser.add_argument(
         "-r", "--recon", action="store_true",
@@ -56,20 +56,32 @@ def parse_args() -> argparse.Namespace:
         help="Enable automatic tunneling",
     )
     parser.add_argument(
+        "-u", "--user", type=str, default=None,
+        help="SSH user for auto-tunnel (default: auto-detect from /etc/passwd)",
+    )
+    parser.add_argument(
         "-v", "--verbose", action="store_true",
         help="Enable verbose output",
+    )
+    parser.add_argument(
+        "--dry-run", action="store_true",
+        help="Show what would be done without creating tunnels",
+    )
+    parser.add_argument(
+        "--status", action="store_true",
+        help="Show current tunnel status and exit",
     )
     return parser.parse_args()
 
 
 def validate_args(
     args: argparse.Namespace,
-) -> Tuple[bool, Optional[str], str, Optional[str], bool, Optional[str], bool, bool]:
+) -> Tuple[bool, Optional[str], str, Optional[str], bool, Optional[str], bool, bool, bool]:
     """Validate parsed arguments and return the resolved values.
 
     Returns:
         (aggressive, callback_ip, tunnel_password, nameserver,
-         recon, sshuser, tunnel, verbose)
+         recon, sshuser, tunnel, verbose, dry_run)
     """
     log = setup_logging(args.verbose)
 
@@ -77,23 +89,25 @@ def validate_args(
     nameserver = args.nameserver
     tunnel_password = args.password if args.password is not None else config.tunnel.password
 
-    if args.tunnel and nameserver and not callback_ip:
-        log.error("A callback IP (-c) must be provided when tunneling is enabled")
-        sys.exit(1)
+    # DNS-only mode is valid: -n nameserver without -c callback
+    if not callback_ip and not nameserver:
+        if not args.recon and not args.status:
+            log.warning("No callback IP (-c) or nameserver (-n) specified — limited functionality")
 
-    # Discover sshuser from /etc/passwd
-    sshuser: Optional[str] = None
-    try:
-        with open("/etc/passwd") as fh:
-            for line in fh:
-                if "sshuser" in line:
-                    sshuser = line.split(":")[0]
-                    break
-    except FileNotFoundError:
-        pass
+    # Discover or use provided sshuser
+    sshuser: Optional[str] = args.user
+    if sshuser is None:
+        try:
+            with open("/etc/passwd") as fh:
+                for line in fh:
+                    if "sshuser" in line:
+                        sshuser = line.split(":")[0]
+                        break
+        except FileNotFoundError:
+            pass
 
     if args.tunnel and sshuser is None:
-        log.error("No sshuser found — this needs to be set up for auto tunnel to work")
+        log.error("No sshuser found — provide one with -u or set up auto-tunnel first")
         sys.exit(1)
 
     return (
@@ -105,37 +119,78 @@ def validate_args(
         sshuser,
         args.tunnel,
         args.verbose,
+        args.dry_run,
     )
+
+
+# ---------------------------------------------------------------------------
+# Status
+# ---------------------------------------------------------------------------
+
+def show_status() -> None:
+    """Show current tunnel status and exit."""
+    log = setup_logging()
+    log.info("Tunnel Status")
+
+    # Check SOCKS proxy on 8123
+    port_check = subprocess.run(
+        ["ss", "-tlnp", "sport", "=", "8123"],
+        capture_output=True, text=True, check=False,
+    )
+    if "8123" in port_check.stdout:
+        curl_check = subprocess.run(
+            ["curl", "--max-time", "5", "--proxy", "socks5h://localhost:8123",
+             "-s", "-o", "/dev/null", "-w", "%{http_code}", "https://ipinfo.io"],
+            capture_output=True, text=True, check=False,
+        )
+        if curl_check.returncode == 0 and curl_check.stdout.strip() == "200":
+            log.info("SOCKS proxy on port 8123: ACTIVE and working")
+        else:
+            log.warning("SOCKS proxy on port 8123: STALE (port in use but not working)")
+    else:
+        log.error("SOCKS proxy on port 8123: NOT RUNNING")
+
+    # Check iodine tunnel
+    dns_check = subprocess.run(
+        ["ip", "-4", "addr", "show", "dns0"],
+        capture_output=True, text=True, check=False,
+    )
+    if "inet " in dns_check.stdout:
+        iodine_running = subprocess.run(
+            ["pgrep", "-x", "iodine"], capture_output=True, check=False,
+        ).returncode == 0
+        if iodine_running:
+            log.info("DNS tunnel (iodine): ACTIVE — dns0 interface up")
+        else:
+            log.warning("DNS tunnel (iodine): STALE — dns0 exists but iodine not running")
+    else:
+        log.error("DNS tunnel (iodine): NOT RUNNING")
+
+    # Check SSH tunnels
+    ssh_check = subprocess.run(
+        ["ss", "-tnpa"], capture_output=True, text=True, check=False,
+    )
+    ssh_tunnels = [l for l in ssh_check.stdout.splitlines() if "ESTAB" in l and "ssh" in l]
+    if ssh_tunnels:
+        log.info(f"SSH tunnels: {len(ssh_tunnels)} established connection(s)")
+        for t in ssh_tunnels:
+            parts = t.split()
+            if len(parts) >= 5:
+                log.info(f"  {parts[4]}")
+    else:
+        log.error("SSH tunnels: NONE")
 
 
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
 
-def get_ssid(verbose: bool) -> str:
-    """Return the current wireless SSID, or ``'NOT CONNECTED'``."""
-    try:
-        result = subprocess.run(
-            ["iwconfig"], capture_output=True, text=True, check=False,
-        )
-        for line in result.stdout.splitlines():
-            if "ESSID:" in line:
-                ssid = line.split("ESSID:")[1].strip().strip('"')
-                if ssid and ssid != "off/any":
-                    return ssid
-        return "NOT CONNECTED"
-    except Exception as exc:
-        if verbose:
-            print(exc)
-        return "NOT CONNECTED"
-
-
 def start_recon() -> None:
     """Run basic network reconnaissance."""
     log = setup_logging()
     log.debug("Running Recon")
     local_ip = get_ip()
-    subnet_ip = ".".join(local_ip.split(".")[:-1]) + ".0"
+    subnet_ip = ".".join(local_ip.split(".")[:3]) + ".0"
     log.warning("IP Information")
     log.info(f"The IP address is {local_ip}")
     log.info(f"The IP subnet is {subnet_ip}/24")
@@ -145,29 +200,38 @@ def start_recon() -> None:
 # Main
 # ---------------------------------------------------------------------------
 
-def main() -> None:
-    """Entry point for Breakout."""
+def main() -> int:
+    """Entry point for Breakout. Returns exit code."""
     is_pi = os.path.isfile("/sys/class/leds/led1/trigger")
 
     # Stop if already running
     check_running_state("breakout.py")
 
     args = parse_args()
-    aggressive, callback_ip, tunnel_password, nameserver, recon, sshuser, tunnel, verbose = validate_args(args)
+
+    # --status: show tunnel status and exit
+    if args.status:
+        show_status()
+        return 0
+
+    aggressive, callback_ip, tunnel_password, nameserver, recon, sshuser, tunnel, verbose, dry_run = validate_args(args)
 
     log = setup_logging(verbose)
     log.info(f"Scan started at {time.strftime('%b %-d %H:%M:%S')}")
 
-    current_ssid = get_ssid(verbose)
+    current_ssid = get_ssid()
 
     if tunnel:
         log.debug("Auto Tunnel is enabled")
+
+    if dry_run:
+        log.warning("DRY RUN — no tunnels will be created")
 
     log.info(f"On SSID: {current_ssid}")
 
     if os.geteuid() != 0:
         log.error("Script must be run as root")
-        sys.exit(1)
+        return 1
 
     if verbose:
         log.debug("Verbosity is enabled")
@@ -176,16 +240,24 @@ def main() -> None:
         log.debug("Aggressive is enabled")
 
     # Check for open ports and tunnel
-    initialise_tunnel(
+    success = initialise_tunnel(
         aggressive, callback_ip, config, current_ssid,
         tunnel_password, is_pi, nameserver, sshuser, tunnel, verbose,
+        dry_run=dry_run,
     )
 
     if recon:
         start_recon()
 
+    return 0 if success else 1
+
 
 if __name__ == "__main__":
     if config.show_banner:
         banner()
-    main()
+    try:
+        sys.exit(main())
+    except KeyboardInterrupt:
+        log = setup_logging()
+        log.warning("\nInterrupted — cleaning up")
+        sys.exit(130)

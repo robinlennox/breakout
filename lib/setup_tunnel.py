@@ -2,11 +2,12 @@
 """Tunnel setup and verification helpers for Breakout."""
 
 import logging
+import os
+import socket
 import subprocess
 import time
 from typing import Optional
 
-from pexpect import pxssh
 from scapy.all import IP, TCP, sr1
 
 logging.getLogger("scapy.runtime").setLevel(logging.ERROR)
@@ -69,17 +70,21 @@ def udp2raw_tunnel_attempt(
 
         time.sleep(5)
 
-        nc_cmd = f"timeout 5 bash -c 'nc 127.0.0.1 {local_port} < /dev/null | head -1'"
+        # Fix #7: replaced shell=True with direct subprocess call
         log.debug(f"Verifying tunnel: nc 127.0.0.1 {local_port}")
         result = subprocess.run(
-            nc_cmd, shell=True,
+            ["nc", "-w", "5", "127.0.0.1", str(local_port)],
             capture_output=True, text=True, check=False,
+            timeout=10, stdin=subprocess.DEVNULL,
         )
         nc_output = (result.stdout + result.stderr).strip()
         if nc_output:
             log.debug(f"nc response: {nc_output}")
 
         return "SSH" in result.stdout + result.stderr
+    except subprocess.TimeoutExpired:
+        log.debug("nc timed out — tunnel not responding")
+        return False
     except Exception as exc:
         log.error(f"Tunnel attempt failed: {exc}")
         return False
@@ -113,23 +118,23 @@ def udp2raw_tunnel(
 
 
 def check_tunnel(ip_addr: str, port_number: int | str) -> bool:
-    """Test if an SSH tunnel can be established to *ip_addr*:*port_number*."""
-    s = pxssh.pxssh(timeout=10)
+    """Test if *ip_addr*:*port_number* has an SSH service by reading the banner.
+
+    Fix #2: replaced fake-credential pxssh login with a simple TCP banner check.
+    This avoids triggering fail2ban and is faster.
+    """
     try:
-        test_conn = s.login(
-            ip_addr, "myusername", "mypassword",
-            port=port_number, auto_prompt_reset=False,
-        )
-        s.close()
-        return bool(test_conn)
-    except pxssh.ExceptionPxssh as exc:
-        if "could not set shell prompt" in str(exc):
-            log.error("Failed connect, trying again.")
-            return False
-        # Other pxssh errors may indicate the port is reachable
-        return True
-    except Exception:
-        log.error("Failed connect, trying again.")
+        sock = socket.create_connection((ip_addr, int(port_number)), timeout=5)
+        try:
+            banner = sock.recv(256).decode(errors="replace")
+            return "SSH" in banner
+        finally:
+            sock.close()
+    except (ConnectionRefusedError, ConnectionResetError):
+        log.debug(f"Connection refused to {ip_addr}:{port_number}")
+        return False
+    except (socket.timeout, OSError) as exc:
+        log.debug(f"check_tunnel failed: {exc}")
         return False
 
 
@@ -221,5 +226,3 @@ def dns_tunnel(password: str, nameserver: str, verbose: bool) -> bool:
     kill_iodine()
 
     return False
-
-

@@ -5,6 +5,7 @@ __pycache__/
 
 # Breakout runtime files
 checkSSH.sh
+check_ssh.sh
 logs/
 _ignore/
 

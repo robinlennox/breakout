@@ -6,6 +6,7 @@ import os
 import shutil
 import subprocess
 import time
+from pathlib import Path
 from typing import List, Optional, Tuple
 
 from lib.autotunnel import CHECK_SSH_LOC, setup_auto_tunnel, current_ssh_tunnel, check_ssh
@@ -13,21 +14,25 @@ from lib.network import check_interfaces, setup_gateways, TUNNEL_LOG
 from lib.port_check import check_port, portquiz_scan, traceroute_port_check, scan_results
 from lib.protocol_check import check_icmp, check_dns
 from lib.setup_tunnel import is_port_open, check_tunnel, udp2raw_tunnel, dns_tunnel, kill_iodine
-from lib.utils import BreakoutConfig
+from lib.utils import (
+    BreakoutConfig, SOCKS_PROXY_PORT, IODINE_TUNNEL_IP, IODINE_TUNNEL_PORT,
+    DNS_INTERFACE, UDP2RAW_PORTS,
+)
 
 log = logging.getLogger("breakout")
 
-def success_message(ip_addr: str, port, sshuser: Optional[str]) -> None:
+def success_message(ip_addr: str, port: int | str, sshuser: Optional[str]) -> None:
     """Print connection instructions after a successful tunnel."""
+    proxy_port = SOCKS_PROXY_PORT
     log.info("------------------------------")
     if sshuser:
         log.info(
-            f"Port forward using: ssh -f -N -D 8123 {sshuser}@{ip_addr} "
+            f"Port forward using: ssh -f -N -D {proxy_port} {sshuser}@{ip_addr} "
             f"-p{port} -i /home/{sshuser}/.ssh/id_rsa"
         )
     else:
-        log.info(f"Port forward example: ssh -f -N -D 8123 root@{ip_addr} -p{port}")
-    log.info("Check it's working using: curl --proxy socks5h://localhost:8123 https://ipinfo.io")
+        log.info(f"Port forward example: ssh -f -N -D {proxy_port} root@{ip_addr} -p{port}")
+    log.info(f"Check it's working using: curl --proxy socks5h://localhost:{proxy_port} https://ipinfo.io")
     log.info("------------------------------")
 
 def check_ports(aggressive: bool, config: BreakoutConfig, verbose: bool) -> List[str]:
@@ -141,29 +146,32 @@ def callback_non_tcp(
         log.error(f"Non-TCP tunnels require {', '.join(missing)} — install before using")
         return tunnel_ip, local_port, None, False
 
+    # Use constants for port configs (#21)
     tunnel_configs = [
-        ("FAKETCP", "faketcp", 4001, 8856),
-        ("UDP",     "udp",     4003, 8857),
+        ("faketcp", UDP2RAW_PORTS["faketcp"]),
+        ("udp", UDP2RAW_PORTS["udp"]),
     ]
 
-    for config_key, tunnel_type, tunnel_port, listen_port in tunnel_configs:
-        if getattr(config.tunnel, config_key.lower()):
+    for tunnel_type, ports in tunnel_configs:
+        if getattr(config.tunnel, tunnel_type):
             if _setup_non_tcp_tunnel(
                 callback_ip, nameserver, tunnel_ip, tunnel_type,
-                tunnel_port, local_port, listen_port, sshuser, tunnel_password, verbose,
+                ports["tunnel"], local_port, ports["listen"], sshuser, tunnel_password, verbose,
             ):
                 return tunnel_ip, local_port, tunnel_type, True
         elif verbose:
-            log.info(f"Config: Skipping {config_key} tunnel")
+            log.info(f"Config: Skipping {tunnel_type} tunnel")
 
     # ICMP — needs an extra check
     if config.tunnel.icmp:
         if check_icmp():
             if verbose:
                 log.info("ICMP is enabled")
+            icmp_ports = UDP2RAW_PORTS["icmp"]
             if _setup_non_tcp_tunnel(
                 callback_ip, nameserver, tunnel_ip, "icmp",
-                4000, local_port, 8855, sshuser, tunnel_password, verbose,
+                icmp_ports["tunnel"], local_port, icmp_ports["listen"],
+                sshuser, tunnel_password, verbose,
             ):
                 return tunnel_ip, local_port, "icmp", True
         else:
@@ -178,12 +186,12 @@ def callback_dns(
     tunnel_password: str, nameserver: Optional[str], verbose: bool,
 ) -> Tuple[str, int, Optional[str], bool]:
     """Attempt a DNS tunnel via iodine as a last-resort fallback."""
-    tunnel_ip = "10.0.0.1"  # iodine default tunnel IP
-    tunnel_port = 22
+    tunnel_ip = IODINE_TUNNEL_IP
+    tunnel_port = IODINE_TUNNEL_PORT
 
     # Check if an iodine tunnel is already running and connected
     addr_check = subprocess.run(
-        ["ip", "-4", "addr", "show", "dns0"],
+        ["ip", "-4", "addr", "show", DNS_INTERFACE],
         capture_output=True, text=True, check=False,
     )
     if "inet " in addr_check.stdout:
@@ -212,7 +220,7 @@ def callback_dns(
         # Clean up stale interfaces
         if verbose:
             log.warning("Stale iodine tunnel detected — cleaning up")
-        subprocess.run(["ip", "link", "delete", "dns0"], capture_output=True, check=False)
+        subprocess.run(["ip", "link", "delete", DNS_INTERFACE], capture_output=True, check=False)
         for i in range(1, 5):
             subprocess.run(["ip", "link", "delete", f"dns{i}"], capture_output=True, check=False)
 
@@ -235,19 +243,33 @@ def callback_dns(
         log.error("DNS is not reachable — cannot create DNS tunnel")
         return tunnel_ip, tunnel_port, None, False
 
-    # Verify NS record exists for the nameserver domain
+    # Fix #15: Check NS delegation properly — verify the subdomain is delegated
+    # by querying the parent zone for NS records of the nameserver domain
     try:
         ns_result = subprocess.run(
             ["dig", "+short", "NS", nameserver],
             capture_output=True, text=True, check=False, timeout=10,
         )
-        if not ns_result.stdout.strip():
-            log.error(
-                f"No NS record found for {nameserver} — "
-                f"create an NS record pointing to your server before using DNS tunneling"
+        # Also try querying the parent domain for delegation
+        parts = nameserver.split(".", 1)
+        if len(parts) == 2 and not ns_result.stdout.strip():
+            parent_ns = subprocess.run(
+                ["dig", "+short", nameserver, "NS", f"@{parts[1]}"],
+                capture_output=True, text=True, check=False, timeout=10,
             )
-            return tunnel_ip, tunnel_port, None, False
-        if verbose:
+            if not parent_ns.stdout.strip():
+                # Last check: try resolving the nameserver itself
+                a_result = subprocess.run(
+                    ["dig", "+short", "A", nameserver],
+                    capture_output=True, text=True, check=False, timeout=10,
+                )
+                if not a_result.stdout.strip():
+                    log.error(
+                        f"No DNS records found for {nameserver} — "
+                        f"create an A record and NS delegation before using DNS tunneling"
+                    )
+                    return tunnel_ip, tunnel_port, None, False
+        if verbose and ns_result.stdout.strip():
             log.info(f"NS record found for {nameserver}: {ns_result.stdout.strip()}")
     except FileNotFoundError:
         log.warning("dig not available — skipping NS record check")
@@ -271,7 +293,10 @@ def callback_dns(
 
     return tunnel_ip, tunnel_port, None, False
 
-def quick_scan(callback_port: str, callback_ip: str, config: BreakoutConfig, sshuser: Optional[str], verbose: bool) -> bool:
+def quick_scan(
+    callback_port: str, callback_ip: str, config: BreakoutConfig,
+    sshuser: Optional[str], verbose: bool,
+) -> bool:
     """Quick-check if the callback port is already open and SSH-capable."""
     if not config.scan.quick:
         if verbose:
@@ -293,31 +318,35 @@ def initialise_tunnel(
     aggressive: bool, callback_ip: Optional[str], config: BreakoutConfig,
     current_ssid: str, tunnel_password: str, is_pi: bool,
     nameserver: Optional[str], sshuser: Optional[str],
-    tunnel: bool, verbose: bool,
-) -> None:
-    """Main entry point — scan for open ports and establish the best available tunnel."""
+    tunnel: bool, verbose: bool, *, dry_run: bool = False,
+) -> bool:
+    """Main entry point — scan for open ports and establish the best available tunnel.
+
+    Returns True if a tunnel was established, False otherwise (#23).
+    """
     successful_connection = False
     timeout = "1800"  # 30 minutes
+    proxy_port = str(SOCKS_PROXY_PORT)
 
-    # Check if port 8123 SOCKS proxy is already in use
+    # Check if SOCKS proxy port is already in use
     port_check = subprocess.run(
-        ["ss", "-tlnp", "sport", "=", "8123"],
+        ["ss", "-tlnp", "sport", "=", proxy_port],
         capture_output=True, text=True, check=False,
     )
-    if "8123" in port_check.stdout:
-        log.info("Port 8123 is in use, checking if SOCKS proxy is still working...")
+    if proxy_port in port_check.stdout:
+        log.info(f"Port {proxy_port} is in use, checking if SOCKS proxy is still working...")
         curl_check = subprocess.run(
-            ["curl", "--max-time", "5", "--proxy", "socks5h://localhost:8123",
+            ["curl", "--max-time", "5", "--proxy", f"socks5h://localhost:{proxy_port}",
              "-s", "-o", "/dev/null", "-w", "%{http_code}", "https://ipinfo.io"],
             capture_output=True, text=True, check=False,
         )
         if curl_check.returncode == 0 and curl_check.stdout.strip() == "200":
-            log.info("Existing SOCKS proxy on port 8123 is working — no tunnel setup needed")
-            log.info("Check it's working using: curl --proxy socks5h://localhost:8123 https://ipinfo.io")
-            return
+            log.info(f"Existing SOCKS proxy on port {proxy_port} is working — no tunnel setup needed")
+            log.info(f"Check it's working using: curl --proxy socks5h://localhost:{proxy_port} https://ipinfo.io")
+            return True
         else:
-            log.warning("Stale SOCKS proxy on port 8123 detected — killing it")
-            subprocess.run(["fuser", "-k", "8123/tcp"], capture_output=True, check=False)
+            log.warning(f"Stale SOCKS proxy on port {proxy_port} detected — killing it")
+            subprocess.run(["fuser", "-k", f"{proxy_port}/tcp"], capture_output=True, check=False)
 
     ethernet_up, ethernet_interface, wireless_up = check_interfaces(current_ssid, verbose)
     check_ssh(CHECK_SSH_LOC)
@@ -347,7 +376,17 @@ def initialise_tunnel(
         gateway_wifi = False
 
     if current_ssh_tunnel(config, is_pi, ethernet_up, gateway_wifi, successful_connection, verbose):
-        return
+        return True
+
+    # Dry-run mode (#22): show what would be done without actually tunneling
+    if dry_run:
+        log.info("DRY RUN: Would scan for open ports and attempt tunnels")
+        if callback_ip:
+            log.info(f"DRY RUN: Would try TCP/non-TCP tunnels to {callback_ip}")
+        if nameserver:
+            log.info(f"DRY RUN: Would try DNS tunnel via {nameserver}")
+        log.info("DRY RUN: No tunnels created")
+        return False
 
     # Check which gateway to use — Ethernet or WiFi
     setup_gateways(ethernet_interface, ethernet_up, gateway_wifi, successful_connection, timeout)
@@ -372,17 +411,17 @@ def initialise_tunnel(
 
     callback_port = str(config.scan.callback_port)
     tunnel_ip = callback_ip
-    tunnel_port = callback_port
-    tunnel_type = "Open Port"
+    tunnel_port: int | str = callback_port
+    tunnel_type: Optional[str] = "Open Port"
 
-    tunnel_status = quick_scan(callback_port, callback_ip, config, sshuser, verbose)
+    # Only attempt quick_scan and TCP/non-TCP if we have a callback_ip
+    tunnel_status = False
+    if callback_ip:
+        tunnel_status = quick_scan(callback_port, callback_ip, config, sshuser, verbose)
 
-    if not tunnel_status:
-        open_ports = check_ports(aggressive, config, verbose)
+        if not tunnel_status:
+            open_ports = check_ports(aggressive, config, verbose)
 
-        if all(v is None for v in [callback_ip, nameserver]):
-            log.warning("Unable to create tunnel as no nameserver or callback IP was provided.")
-        else:
             tunnel_ip, tunnel_port, tunnel_type, tunnel_status = callback_tcp(
                 callback_ip, config, sshuser, tunnel_password, nameserver, verbose, open_ports,
             )
@@ -391,15 +430,19 @@ def initialise_tunnel(
                     callback_ip, config, sshuser, tunnel_password, nameserver, verbose,
                 )
 
-        # DNS tunnel only needs nameserver, not callback_ip — always try as last resort
-        if not tunnel_status:
-            tunnel_ip, tunnel_port, tunnel_type, tunnel_status = callback_dns(
-                config, sshuser, tunnel_password, nameserver, verbose,
-            )
+    # DNS tunnel only needs nameserver, not callback_ip — always try as last resort
+    if not tunnel_status:
+        tunnel_ip, tunnel_port, tunnel_type, tunnel_status = callback_dns(
+            config, sshuser, tunnel_password, nameserver, verbose,
+        )
 
     if not tunnel_status:
         log.critical("Tunnel not possible, as no possible tunnels to the callback server could be found")
-    elif tunnel:
+        return False
+
+    successful_connection = True
+
+    if tunnel:
         setup_auto_tunnel(gateway_wifi, sshuser, tunnel_ip, tunnel_port, tunnel_type)
         result = subprocess.run(
             ["bash", str(CHECK_SSH_LOC)], capture_output=True, text=True, check=False,
@@ -408,3 +451,5 @@ def initialise_tunnel(
         log.warning(f"Waiting {wait_time} seconds for tunnel to start")
         time.sleep(wait_time)
         log.info(result.stdout)
+
+    return True

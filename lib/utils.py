@@ -3,10 +3,11 @@
 
 import logging
 import os
+import subprocess
 import sys
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import List
+from typing import List, Optional
 
 import configparser
 try:
@@ -18,6 +19,34 @@ except ImportError:
 # Base directory — configurable via environment variable, default /opt/breakout
 # ---------------------------------------------------------------------------
 BASE_DIR: Path = Path(os.environ.get("BREAKOUT_DIR", "/opt/breakout"))
+
+# ---------------------------------------------------------------------------
+# Constants — centralised magic numbers
+# ---------------------------------------------------------------------------
+SOCKS_PROXY_PORT: int = 8123
+IODINE_TUNNEL_IP: str = "10.0.0.1"
+IODINE_TUNNEL_PORT: int = 22
+DNS_INTERFACE: str = "dns0"
+UDP2RAW_PORTS = {
+    "icmp": {"tunnel": 4000, "listen": 8855, "local": 4444},
+    "faketcp": {"tunnel": 4001, "listen": 8856, "local": 4445},
+    "udp": {"tunnel": 4002, "listen": 8857, "local": 4446},
+}
+DEFAULT_DNS_RESOLVER: str = "8.8.8.8"
+
+# Known valid config keys per section (for validation — #25)
+_VALID_KEYS = {
+    "DEFAULT": {"showbanner"},
+    "WIFI": {"connectwifi", "waittime"},
+    "SCAN": {
+        "callbackport", "quick", "portquiz", "traceroute", "commonports",
+        "quicklimit", "quicklimitaggressive", "portscanthreads", "threadsaggressive",
+    },
+    "TUNNEL": {
+        "checkexisting", "faketcp", "icmp", "tcp", "udp", "dns",
+        "waittime", "password",
+    },
+}
 
 # ---------------------------------------------------------------------------
 # Configuration
@@ -58,7 +87,7 @@ class BreakoutConfig:
     scan: ScanConfig = field(default_factory=ScanConfig)
     tunnel: TunnelConfig = field(default_factory=TunnelConfig)
 
-_config: BreakoutConfig | None = None
+_config: Optional[BreakoutConfig] = None
 
 
 def get_config() -> BreakoutConfig:
@@ -72,6 +101,17 @@ def get_config() -> BreakoutConfig:
     if not config_path.exists():
         config_path = Path(__file__).parent.parent / "configs" / "config.ini"
     cp.read(str(config_path))
+
+    # Validate config keys (#25)
+    logger = logging.getLogger("breakout")
+    for section in cp.sections():
+        valid = _VALID_KEYS.get(section.upper(), None)
+        if valid is None:
+            logger.warning(f"config.ini: unknown section [{section}]")
+            continue
+        for key in cp.options(section):
+            if key not in valid and key not in _VALID_KEYS.get("DEFAULT", set()):
+                logger.warning(f"config.ini: unknown key '{key}' in [{section}]")
 
     _config = BreakoutConfig(
         show_banner=cp.getboolean("DEFAULT", "SHOWBANNER", fallback=True),
@@ -149,10 +189,6 @@ def setup_logging(verbose: bool = False) -> logging.Logger:
     return logger
 
 
-# Convenience: module-level logger for files that import utils
-log: logging.Logger = setup_logging()
-
-
 # ---------------------------------------------------------------------------
 # Shared helpers
 # ---------------------------------------------------------------------------
@@ -162,6 +198,22 @@ def get_wireless_interfaces() -> List[str]:
     if netifaces is None:
         raise RuntimeError("netifaces is required — install it with: pip install netifaces")
     return [iface for iface in netifaces.interfaces() if "wl" in iface]
+
+
+def get_ssid() -> str:
+    """Return the current wireless SSID, or ``'NOT CONNECTED'``."""
+    try:
+        result = subprocess.run(
+            ["iwconfig"], capture_output=True, text=True, check=False,
+        )
+        for line in result.stdout.splitlines():
+            if "ESSID:" in line:
+                ssid = line.split("ESSID:")[1].strip().strip('"')
+                if ssid and ssid != "off/any":
+                    return ssid
+        return "NOT CONNECTED"
+    except Exception:
+        return "NOT CONNECTED"
 
 
 def write_log(filepath: Path, *fields: str) -> None:

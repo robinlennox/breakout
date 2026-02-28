@@ -8,10 +8,8 @@ import time
 from pathlib import Path
 from typing import List, Optional
 
-import wifi
-
 from lib.script_management import check_running_state
-from lib.utils import BASE_DIR, get_config, get_wireless_interfaces, write_log
+from lib.utils import BASE_DIR, get_config, get_ssid, get_wireless_interfaces, write_log
 
 log = logging.getLogger("breakout")
 config = get_config()
@@ -25,28 +23,73 @@ IGNORE_SSID_FILE = BASE_DIR / "configs" / "ignore_ssid"
 # ---------------------------------------------------------------------------
 
 def attempt_wifi_connect(ssid_name: str, wireless_interface: str) -> bool:
-    """Try to connect to an open WiFi SSID and return *True* on success."""
+    """Try to connect to an open WiFi SSID and return *True* on success.
+
+    Fix #13: uses `ip` commands instead of deprecated `ifconfig`.
+    """
     subprocess.run(["rfkill", "unblock", "wifi"], check=False)
     subprocess.run(["rfkill", "unblock", "all"], check=False)
-    subprocess.run(["ifconfig", wireless_interface, "down"], check=False)
+    subprocess.run(["ip", "link", "set", wireless_interface, "down"], check=False)
     subprocess.run(["iwconfig", wireless_interface, "essid", "any"], check=False)
-    subprocess.run(["ifconfig", wireless_interface, "up"], check=False)
+    subprocess.run(["ip", "link", "set", wireless_interface, "up"], check=False)
     subprocess.run(["iwconfig", wireless_interface, "essid", ssid_name], check=False)
 
     log.debug("Waiting for network to finish setting up")
-    subprocess.run(["dhcpcd", "-i", wireless_interface], check=False)
+
+    # Fix #13: try available DHCP clients
+    import shutil
+    if shutil.which("dhclient"):
+        subprocess.run(["dhclient", wireless_interface], check=False)
+    elif shutil.which("dhcpcd"):
+        subprocess.run(["dhcpcd", "-i", wireless_interface], check=False)
+    elif shutil.which("udhcpc"):
+        subprocess.run(["udhcpc", "-i", wireless_interface], check=False)
+    else:
+        log.error("No DHCP client found (dhclient, dhcpcd, udhcpc)")
+        return False
 
     wait_time = config.wifi.wait_time
     time.sleep(wait_time)
 
     for attempt in range(5):
-        if get_current_ssid() is not None:
+        if get_ssid() != "NOT CONNECTED":
             return True
         if attempt == 4:
             log.warning(f"Failed to get DHCP address for SSID {ssid_name} on {wireless_interface}")
             log.error("Try disabling network management of host such as 'sudo service network-manager stop'")
 
     return False
+
+
+def _scan_wifi(wireless_interface: str) -> list:
+    """Scan for WiFi networks using iwlist (replaces deprecated wifi package #13)."""
+    networks = []
+    try:
+        result = subprocess.run(
+            ["iwlist", wireless_interface, "scan"],
+            capture_output=True, text=True, check=False,
+        )
+        current_ssid = None
+        encrypted = False
+        for line in result.stdout.splitlines():
+            line = line.strip()
+            if "ESSID:" in line:
+                current_ssid = line.split("ESSID:")[1].strip().strip('"')
+            elif "Encryption key:on" in line:
+                encrypted = True
+            elif "Encryption key:off" in line:
+                encrypted = False
+            elif line.startswith("Cell ") or "Address:" in line:
+                if current_ssid is not None:
+                    networks.append({"ssid": current_ssid, "encrypted": encrypted})
+                current_ssid = None
+                encrypted = False
+        # Don't forget the last cell
+        if current_ssid is not None:
+            networks.append({"ssid": current_ssid, "encrypted": encrypted})
+    except Exception as exc:
+        log.warning(f"WiFi scan failed on {wireless_interface}: {exc}")
+    return networks
 
 
 def open_wifi(is_pi: bool) -> None:
@@ -58,60 +101,44 @@ def open_wifi(is_pi: bool) -> None:
         subprocess.run(["rfkill", "unblock", "wifi"], check=False)
         subprocess.run(["rfkill", "unblock", "all"], check=False)
         log.info(f"Trying interface {wireless_interface}")
-        subprocess.run(["ifconfig", wireless_interface, "up"], check=False)
+        subprocess.run(["ip", "link", "set", wireless_interface, "up"], check=False)
 
-        try:
-            cells = wifi.Cell.all(wireless_interface)
-        except Exception:
+        cells = _scan_wifi(wireless_interface)
+        if not cells:
             continue
 
         skip_list = create_wifi_blocklist() + create_wifi_ignorelist()
 
         for cell in cells:
-            if cell.ssid in skip_list:
+            ssid = cell["ssid"]
+            if ssid in skip_list or not ssid:
                 continue
 
             timestamp = time.strftime("%b %-d %H:%M:%S")
 
-            if not cell.encrypted and cell.ssid:
-                skip_list.append(cell.ssid)
-                log.warning(f"Attempting to connect to SSID {cell.ssid} on {wireless_interface}")
+            if not cell["encrypted"]:
+                skip_list.append(ssid)
+                log.warning(f"Attempting to connect to SSID {ssid} on {wireless_interface}")
 
-                if attempt_wifi_connect(cell.ssid, wireless_interface):
-                    log.info(f"Successfully connected to SSID {cell.ssid} on {wireless_interface}")
-                    write_log(WIFI_LOG, timestamp, cell.ssid, "Open=Yes", "Connected=Yes")
+                if attempt_wifi_connect(ssid, wireless_interface):
+                    log.info(f"Successfully connected to SSID {ssid} on {wireless_interface}")
+                    write_log(WIFI_LOG, timestamp, ssid, "Open=Yes", "Connected=Yes")
                     if is_pi:
                         Path("/sys/class/leds/led0/brightness").write_text("1\n")
                     return  # Connected — stop scanning
                 else:
-                    log.error(f"Failed to connect to SSID {cell.ssid} on {wireless_interface}")
-                    write_log(WIFI_LOG, timestamp, cell.ssid, "Open=Yes", "Connected=No")
+                    log.error(f"Failed to connect to SSID {ssid} on {wireless_interface}")
+                    write_log(WIFI_LOG, timestamp, ssid, "Open=Yes", "Connected=No")
 
-            elif cell.ssid:
-                log.debug(f"Passing encrypted SSID {cell.ssid} on {wireless_interface}")
-                skip_list.append(cell.ssid)
-                write_log(WIFI_LOG, timestamp, cell.ssid, "Open=No", "Connected=No")
+            else:
+                log.debug(f"Passing encrypted SSID {ssid} on {wireless_interface}")
+                skip_list.append(ssid)
+                write_log(WIFI_LOG, timestamp, ssid, "Open=No", "Connected=No")
 
 
 # ---------------------------------------------------------------------------
 # SSID helpers
 # ---------------------------------------------------------------------------
-
-def get_current_ssid() -> Optional[str]:
-    """Return the currently connected SSID, or *None*."""
-    result = subprocess.run(
-        ["iwconfig"], capture_output=True, text=True, check=False,
-    )
-    ssid = None
-    for line in result.stdout.splitlines():
-        if "ESSID:" in line:
-            parsed = line.split("ESSID:")[1].strip().strip('"')
-            if parsed and parsed != "off/any":
-                ssid = parsed
-                break
-    time.sleep(config.wifi.wait_time)
-    return ssid
-
 
 def create_wifi_ignorelist() -> List[str]:
     """Return SSIDs from the ignore list file."""
@@ -141,7 +168,7 @@ def create_wifi_blocklist() -> List[str]:
 
     try:
         cutoff = datetime.now() - timedelta(seconds=timeout)
-        counts = Counter()
+        counts: Counter = Counter()
         for line in WIFI_LOG.read_text().splitlines():
             try:
                 parts = line.split()
@@ -178,9 +205,9 @@ def main() -> None:
 
     is_pi = os.path.isfile("/sys/class/leds/led1/trigger")
     try:
-        current_ssid = get_current_ssid()
-        if current_ssid is not None:
-            log.info(f"Already connected to SSID: {current_ssid}")
+        current = get_ssid()
+        if current != "NOT CONNECTED":
+            log.info(f"Already connected to SSID: {current}")
             if is_pi:
                 Path("/sys/class/leds/led0/brightness").write_text("1\n")
         else:

@@ -6,6 +6,8 @@ from typing import Optional
 
 from netaddr import IPAddress
 
+from lib.utils import DEFAULT_DNS_RESOLVER
+
 
 def is_public_ip(ip_addr: str) -> bool:
     """Return *True* if *ip_addr* is a publicly routable unicast address."""
@@ -19,11 +21,14 @@ def is_public_ip(ip_addr: str) -> bool:
     )
 
 
-def get_ip() -> Optional[str]:
-    """Return the local IP address used to reach the internet."""
+def get_ip(target: str = DEFAULT_DNS_RESOLVER) -> Optional[str]:
+    """Return the local IP address used to reach the internet.
+
+    Fix #6: uses configurable target instead of hardcoded 8.8.8.8.
+    """
     s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     try:
-        s.connect(("8.8.8.8", 80))
+        s.connect((target, 80))
         return s.getsockname()[0]
     finally:
         s.close()

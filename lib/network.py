@@ -2,6 +2,7 @@
 """Routing, gateway management, and network interface checks for Breakout."""
 
 import logging
+import shutil
 import subprocess
 import time
 from datetime import datetime, timedelta
@@ -104,7 +105,15 @@ def setup_gateways(
         CHECK_SSH_LOC.unlink(missing_ok=True)
         Path("/etc/motd").unlink(missing_ok=True)
         subprocess.run(["ip", "route", "flush", "table", "main"], check=False)
-        subprocess.run(["udhcpc", "-i", ethernet_interface], check=False)
+        # Fix #4: try available DHCP clients instead of assuming udhcpc
+        if shutil.which("dhclient"):
+            subprocess.run(["dhclient", ethernet_interface], check=False)
+        elif shutil.which("udhcpc"):
+            subprocess.run(["udhcpc", "-i", ethernet_interface], check=False)
+        elif shutil.which("dhcpcd"):
+            subprocess.run(["dhcpcd", ethernet_interface], check=False)
+        else:
+            log.error("No DHCP client found (dhclient, udhcpc, dhcpcd)")
     elif ethernet_up and attempts > 5:
         gateway_wifi = True
         log.critical("Unable to tunnel out using current default routes")
