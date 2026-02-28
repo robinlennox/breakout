@@ -1,147 +1,165 @@
-#!/usr/bin/env python
-# By Robin Lennox - twitter.com/robberbear
+#!/usr/bin/env python3
+"""Port scanning helpers for Breakout — portquiz and traceroute methods."""
 
 import logging
 import random
+from dataclasses import dataclass, field
 from functools import partial
 from multiprocessing.dummy import Pool as ThreadPool
+from typing import Callable, List
 
-from scapy.all import IP, TCP, sr1
 import requests
+from scapy.all import IP, TCP, sr1
 
+from lib.ip_check import is_public_ip
+from lib.layout import colour
 
-from lib.IPCheck import ip_validate
-from lib.Layout import colour
-
-# Disable Scapy error messages
 logging.getLogger("scapy.runtime").setLevel(logging.ERROR)
 
+log = logging.getLogger("breakout")
 
-# Import Colour Scheme
+# Import Colour Scheme (still used for some direct print output)
 G, Y, B, R, W = colour()
 
-global possiblePorts
-possiblePorts = []
 
-global openPorts
-openPorts = []
+# ---------------------------------------------------------------------------
+# Scan results — replaces the old global mutable lists
+# ---------------------------------------------------------------------------
+@dataclass
+class ScanResults:
+    """Accumulates port scan findings."""
+
+    open_ports: List[str] = field(default_factory=list)
+    possible_ports: List[str] = field(default_factory=list)
 
 
-def multiprocessing(aggressive, config, port_list, scan_type, threadcount, verbose):
-    global check_count
-    check_count = 0
-    
-    global quitscan
-    quitscan = 0
+# Module-level instance so scan functions can append results
+scan_results = ScanResults()
 
-    pool = ThreadPool(threadcount)
-    pool.map(partial(scan_type, aggressive=aggressive, config=config, verbose=verbose),
-             port_list)
+
+# ---------------------------------------------------------------------------
+# Multi-threaded scanner
+# ---------------------------------------------------------------------------
+_check_count: int = 0
+_quit_scan: int = 0
+
+
+def _multiprocess_scan(
+    aggressive: bool,
+    config,
+    port_list: list,
+    scan_func: Callable,
+    thread_count: int,
+    verbose: bool,
+) -> None:
+    """Run *scan_func* across *port_list* using a thread pool."""
+    global _check_count, _quit_scan
+    _check_count = 0
+    _quit_scan = 0
+
+    pool = ThreadPool(thread_count)
+    pool.map(
+        partial(scan_func, aggressive=aggressive, config=config, verbose=verbose),
+        port_list,
+    )
     pool.close()
     pool.join()
 
 
-def check_port(aggressive, config, scan_type, verbose,):
-    common_ports = config.get('SCAN','COMMONPORTS').split(',')
+# ---------------------------------------------------------------------------
+# Public API
+# ---------------------------------------------------------------------------
+
+def check_port(aggressive: bool, config, scan_type: Callable, verbose: bool) -> None:
+    """Scan common ports using *scan_type*, then optionally run a full scan."""
+    common_ports = config.scan.common_ports
 
     try:
-        multiprocessing(aggressive, config, common_ports, scan_type, config.getint('SCAN','PORTSCANTHREADS'), verbose, )
-        if openPorts:
-            pass
-    except Exception as e:
-        #print(e)
+        _multiprocess_scan(
+            aggressive, config, common_ports, scan_type,
+            config.scan.port_scan_threads, verbose,
+        )
+    except Exception:
         pass
 
-    openPorts = 1
-    if not openPorts and aggressive:
-        print(Y+"[*] Running Aggressive Scan, no common ports are open"+W)
-        print(
-            B+"[-] Running full port check. This may take awhile, please wait....."+W)
-        port_list = range(1, 65534)
-        # Remove common ports
-        port_list = [x for x in port_list if x not in common_ports]
-        # Random List for searching
+    if not scan_results.open_ports and aggressive:
+        log.warning("Running Aggressive Scan, no common ports are open")
+        log.debug("Running full port check. This may take awhile, please wait.....")
+        port_list = [p for p in range(1, 65534) if str(p) not in common_ports]
         random.shuffle(port_list)
-        multiprocessing(aggressive, config, port_list, scan_type, config.getint('SCAN','THREADSAGGRESSIVE'), verbose, )
+        _multiprocess_scan(
+            aggressive, config, port_list, scan_type,
+            config.scan.threads_aggressive, verbose,
+        )
 
 
-def traceroute_port_check(portNumber, aggressive, config, verbose):
-    global check_count
-    global quitscan
+# ---------------------------------------------------------------------------
+# Scan methods
+# ---------------------------------------------------------------------------
+
+def traceroute_port_check(port_number, *, aggressive: bool, config, verbose: bool) -> None:
+    """Check if *port_number* is open using a TTL-incrementing traceroute."""
+    global _check_count, _quit_scan
     check_none = 0
 
-    # Stop after finding one port open to prevent detection.
-    if quitscan >= config.getint('SCAN','QUICKLIMIT'):
+    if _quit_scan >= config.scan.quick_limit:
         return
 
-    if check_count == 1000:
-        print(
-            Y+"[*] Still checking for open ports, 1000 checked so far. Trying again."+W)
-        check_count = 0
+    if _check_count == 1000:
+        log.warning("Still checking for open ports, 1000 checked so far. Trying again.")
+        _check_count = 0
 
     for i in range(1, 28):
-        pkt = IP(dst="8.8.8.8", ttl=i) / TCP(dport=int(portNumber))
-        # Send the packet and get a reply
+        pkt = IP(dst="8.8.8.8", ttl=i) / TCP(dport=int(port_number))
         reply = sr1(pkt, verbose=0, inter=0.5, retry=0, timeout=1)
         if reply is None:
-            # No reply =(
             check_none += 1
-            # Try two hops before giving up
             if check_none > 2:
                 break
         else:
-            if check_count != 1 and ip_validate(reply.src) is True and not reply.flags:
+            if _check_count != 1 and is_public_ip(reply.src) and not reply.flags:
                 if verbose:
-                    print("[+] Found open port: {0}".format(portNumber))
-                openPorts.append(str(portNumber))
-                quitscan += 1
-                check_count += 1
+                    log.info(f"Found open port: {port_number}")
+                scan_results.open_ports.append(str(port_number))
+                _quit_scan += 1
+                _check_count += 1
                 break
-
             elif reply.type == 3:
-                # We've reached our destination
-                check_count += 1
+                _check_count += 1
                 break
             else:
-                # Reset Check None
                 check_none = 0
-                check_count += 1
+                _check_count += 1
 
 
-def portquiz_scan(portNumber, aggressive, config, verbose):
-    global check_count
-    global quitscan
-    # Stop after finding one port open to prevent detection.
-    if quitscan >= config.getint('SCAN','QUICKLIMIT') and aggressive is False:
+def portquiz_scan(port_number, *, aggressive: bool, config, verbose: bool) -> None:
+    """Check if *port_number* is open using portquiz.net."""
+    global _check_count, _quit_scan
+
+    if _quit_scan >= config.scan.quick_limit and not aggressive:
         return
-    elif quitscan >= config.getint('SCAN','QUICKLIMITAGGRESSIVE'):
+    if _quit_scan >= config.scan.quick_limit_aggressive:
         return
 
-    if check_count == 1000:
-        print(
-            Y+"[*] Still checking for open ports, 1000 checked so far. Trying again."+W)
-        check_count = 0
+    if _check_count == 1000:
+        log.warning("Still checking for open ports, 1000 checked so far. Trying again.")
+        _check_count = 0
+
     try:
-        r = requests.get(
-            'http://portquiz.net:{0}'.format(str(portNumber)), timeout=(1, 3))
-        # Verify the portquiz website is hit and not proxy page
-        if "This server listens on all TCP ports, allowing you to test any outbound TCP port." in r.text:
+        r = requests.get(f"http://portquiz.net:{port_number}", timeout=(1, 3))
+        if "This server listens on all TCP ports" in r.text:
             if verbose:
-                print("[+] Found open port: {0}".format(portNumber))
-            openPorts.append(str(portNumber))
-            quitscan += 1
-            check_count += 1
-    # If Timeout
+                log.info(f"Found open port: {port_number}")
+            scan_results.open_ports.append(str(port_number))
+            _quit_scan += 1
+            _check_count += 1
     except requests.exceptions.ConnectTimeout:
-        print("[+] Closed port: {0}".format(portNumber))
-        check_count += 1
-        pass
-    # If open but not a HTTP Connection
+        log.info(f"Closed port: {port_number}")
+        _check_count += 1
     except requests.ConnectionError:
-        print("[+] Found possible port: {0}".format(portNumber))
-        possiblePorts.append(str(portNumber))
-        check_count += 1
+        log.info(f"Found possible port: {port_number}")
+        scan_results.possible_ports.append(str(port_number))
+        _check_count += 1
     except Exception:
-        print("[+] Closed port: {0}".format(portNumber))
-        check_count += 1
-        pass
+        log.info(f"Closed port: {port_number}")
+        _check_count += 1

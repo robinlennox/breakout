@@ -1,36 +1,38 @@
-#!/usr/bin/env python
-# By Robin Lennox - twitter.com/robberbear
+#!/usr/bin/env python3
+"""ASCII banner and terminal colour helpers for Breakout."""
 
 import sys
+from typing import Tuple
 
 
-def banner():
-    # Import Colour Scheme
+def banner() -> None:
+    """Print the Breakout ASCII art banner."""
     G, Y, B, R, W = colour()
 
-    print("""{0}
+    art = (
+        R
+        + r"""
                  ____                 _               _
                 |  _ \               | |             | |
                 | |_) |_ __ ___  __ _| | _____  _   _| |_
                 |  _ <| '__/ _ \/ _` | |/ / _ \| | | | __|
                 | |_) | | |  __/ (_| |   < (_) | |_| | |_
-                |____/|_|  \___|\__,_|_|\_\___/ \__,_|\__|{1}{2}
-                # Coded By Robin Lennox - @robberbear
-    """.format(R, W, Y))
+                |____/|_|  \___|\__,_|_|\_\___/ \__,_|\__|"""
+        + W + Y
+        + "\n                # Coded By Robin Lennox - @robberbear\n"
+    )
+    print(art)
 
 
-def colour():
-    # Check if we are running this on windows platform
-    is_windows = sys.platform.startswith('win')
+def colour() -> Tuple[str, str, str, str, str]:
+    """Return (Green, Yellow, Blue, Red, White/reset) ANSI escape strings."""
+    if sys.platform.startswith("win"):
+        return ("", "", "", "", "")
 
-    # Console Colors
-    if is_windows:
-        G = Y = B = R = W = G = Y = B = R = W = ''  # use no terminal colors on windows
-    else:
-        G = '\033[92m'  # green
-        Y = '\033[93m'  # yellow
-        B = '\033[94m'  # blue
-        R = '\033[91m'  # red
-        W = '\033[0m'  # white
-
-        return G, Y, B, R, W
+    return (
+        "\033[92m",  # green
+        "\033[93m",  # yellow
+        "\033[94m",  # blue
+        "\033[91m",  # red
+        "\033[0m",   # reset
+    )

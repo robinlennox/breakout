@@ -1,6 +1,7 @@
 #!/bin/bash
-#description            :This script will setup the server auto tunnel.
-#author                 :Robin Lennox
+#title          :add_user_remote.sh
+#description    :Adds a client's SSH public key to the callback server to allow reverse tunnels.
+#author         :Robin Lennox
 #==============================================================================
 
 username=$1

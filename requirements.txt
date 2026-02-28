@@ -1,0 +1,6 @@
+netaddr
+netifaces
+pexpect
+requests
+scapy
+wifi

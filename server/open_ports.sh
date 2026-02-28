@@ -1,7 +1,7 @@
 #!/bin/bash
-#title                  :open_ports.sh
-#description            :This script will open an SSH port on the server for the specific IP on a specific port. 
-#author                 :Robin Lennox
+#title          :open_ports.sh
+#description    :Opens an SSH port on the server for a specific client IP.
+#author         :Robin Lennox
 #==============================================================================
 
 function enableUFW {

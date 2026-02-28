@@ -1,6 +1,7 @@
 #!/bin/bash
-#description            :This script will install the server prerequisites.
-#author                 :Robin Lennox
+#title          :install_server.sh
+#description    :Installs required dependencies and configures the callback server for TCP, UDP, ICMP, and DNS tunnels.
+#author         :Robin Lennox
 #==============================================================================
 
 function main {
@@ -28,7 +29,7 @@ function main {
     # Install PKG #
     apt-get update
     apt-get -y upgrade
-    for installpkg in git build-essential libz-dev
+    for installpkg in git build-essential libz-dev iodine
     do
         checkinstalled=$(dpkg-query -l | grep ${installpkg})
         if [ "" == "${checkinstalled}" ]; then
@@ -41,29 +42,29 @@ function main {
     sed -Ei 's/#ListenAddress 0.0.0.0/ListenAddress 0.0.0.0/' /etc/ssh/sshd_config
     cp /etc/ssh/sshd_config /etc/ssh/sshd_config_orig
 
-    echo "1" | tee /proc/sys/net/ipv4/icmp_echo_ignore_all
+    echo "0" | tee /proc/sys/net/ipv4/icmp_echo_ignore_all
     wget https://github.com/wangyu-/udp2raw-tunnel/releases/download/20181113.0/udp2raw_binaries.tar.gz -P /tmp && \
     tar -xvf /tmp/udp2raw_binaries.tar.gz -C /usr/local/bin/ udp2raw_amd64 && \
     mv /usr/local/bin/udp2raw_amd64 /usr/local/bin/udp2raw && \
     chmod +x /usr/local/bin/udp2raw && \
     rm -rf /tmp/udp2raw_binaries.tar.gz
 
-    wget https://github.com/xtaci/kcptun/releases/download/v20190109/kcptun-linux-amd64-20190109.tar.gz -P /tmp && \
-    tar -xvf /tmp/kcptun-linux-amd64-20190109.tar.gz -C /usr/local/bin/ server_linux_amd64 && \
+    wget https://github.com/iaineng/kcptun/releases/download/v20260129/kcptun_linux_amd64.tar.gz -P /tmp && \
+    tar -xvf /tmp/kcptun_linux_amd64.tar.gz -C /usr/local/bin/ server_linux_amd64 && \
     mv /usr/local/bin/server_linux_amd64 /usr/local/bin/kcptun_server && \
     chmod +x /usr/local/bin/kcptun_server && \
-    rm -rf /tmp/kcptun-linux-amd64-20190109.tar.gz
+    rm -rf /tmp/kcptun_linux_amd64.tar.gz
 
     #Install Directory
     BREAKOUT_DIRECTORY='/opt/breakout'
     mkdir ${BREAKOUT_DIRECTORY}
-    wget https://raw.githubusercontent.com/robinlennox/breakout/master/server/breakoutTunnels.sh -P ${BREAKOUT_DIRECTORY}
+    wget https://raw.githubusercontent.com/robinlennox/breakout/master/server/breakout_tunnels.sh -P ${BREAKOUT_DIRECTORY}
     wget https://raw.githubusercontent.com/robinlennox/breakout/master/server/tunnel_server.sh -P ${BREAKOUT_DIRECTORY}
     wget https://raw.githubusercontent.com/robinlennox/breakout/master/server/open_ports.sh -P ${BREAKOUT_DIRECTORY}
 
     #Make link to script
-    chmod +x /opt/breakout/breakoutTunnels.sh
-    ln -s /opt/breakout/breakoutTunnels.sh /usr/local/bin/breakoutTunnels
+    chmod +x /opt/breakout/breakout_tunnels.sh
+    ln -s /opt/breakout/breakout_tunnels.sh /usr/local/bin/breakout_tunnels
 
     #Setup SSH Keys
     ssh-keygen -f ~/.ssh/id_rsa -N ""

@@ -1,13 +1,13 @@
 #!/bin/bash
-#title                  :checkSSH.sh
-#description            :This script will verify that the SSH Tunnel to the callback server is up. 
+#title                  :breakout_tunnels.sh
+#description            :Lists active reverse SSH tunnels connected to this callback server and provides a menu to connect to them.
 #author                 :Robin Lennox
 #source                 :http://serverfault.com/a/298312
 #==============================================================================
 
 function getopentunnels {
 
-    sshProcesses=$(netstat -tnpa | grep 'sshd:' | grep '*' | grep '127.0.0.1' | awk {'print $7'} | cut -d'/' -f1 | uniq)
+    sshProcesses=$(ss -ntpa | grep '"sshd"' | grep '\*' | grep '127.0.0.1' | grep -oP 'pid=\K[0-9]+' | sort -u)
     if [ -z "${sshProcesses}" ]; then
         echo 'Connect to Client'
         echo '-----------------'
@@ -17,7 +17,7 @@ function getopentunnels {
         options=()
         for processid in ${sshProcesses}
         do
-            ipAddr=$(netstat -tnpa | grep 'sshd:' | grep '*' | grep '127.0.0.1' | grep ${processid} | awk '{print $4}')
+            ipAddr=$(ss -ntpa | grep '"sshd"' | grep '\*' | grep '127.0.0.1' | grep "pid=${processid}," | awk '{print $4}')
             username=$(ps auxwww | grep -v 'grep' | grep ${processid} | grep sshd: | awk '{print $12}')
             usernameComment=$(grep ${username} /etc/passwd | cut -d':' -f5)
             sshtunneluptime=$(ps -eo pid,etime | grep ${processid} | awk '{print $2}')

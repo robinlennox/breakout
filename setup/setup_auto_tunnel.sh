@@ -1,6 +1,7 @@
 #!/bin/bash
-#description            :This script will install the client prerequisites and can setup the auto tunnel.
-#author                 :Robin Lennox
+#title          :setup_auto_tunnel.sh
+#description    :Sets up the client-server key exchange for auto-tunneling.
+#author         :Robin Lennox
 #==============================================================================
 
 function banner {
@@ -81,9 +82,9 @@ function setupCnCUser {
 		createUsername
 		addUser
 		echo "[+] Creating user ${username} remotely"
-		wget https://raw.githubusercontent.com/robinlennox/breakout/master/setup/addUserRemote.sh -O addUserRemote.sh
-		ssh ${sshLogin} -p${sshPort} "bash -s" < addUserRemote.sh ${username} "${sshPub}" "${clientDesc}"
-		rm addUserRemote.sh
+		wget https://raw.githubusercontent.com/robinlennox/breakout/master/setup/add_user_remote.sh -O add_user_remote.sh
+		ssh ${sshLogin} -p${sshPort} "bash -s" < add_user_remote.sh ${username} "${sshPub}" "${clientDesc}"
+		rm add_user_remote.sh
 	else
 		echo "[x] ${checkSSHUser} already exists."
 	fi

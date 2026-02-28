@@ -1,5 +1,8 @@
 #!/bin/sh
- 
+#title          :custom_motd.sh
+#description    :Generates a custom Message of the Day (MOTD) banner with tunnel status.
+#author         :Robin Lennox
+#==============================================================================
 if [ -z ${1} ]; then
     echo "Usage: ${0} {location of motd}"
     exit 1
@@ -9,12 +12,12 @@ ip=$(/sbin/ifconfig | grep -v "127.0.0.1" | grep -B1 "inet addr" | awk '{ if ( $
 up=$(uptime | awk -F"up " '{print $2}' | awk -F"," '{print $1}' | xargs)
 used=$(df -h | grep -m 1 '/' | awk '{print $3}')
 avail=$(df -h | grep -m 1 '/' | awk '{print $4}')
-tunneltype=$(grep tunnelType /opt/breakout/lib/checkSSH.sh | cut -d "'" -f2)
-gatewaywifi=$(grep gatewayWifi /opt/breakout/lib/checkSSH.sh | cut -d "'" -f2)
+tunneltype=$(grep tunnelType /opt/breakout/check_ssh.sh | cut -d "'" -f2)
+gatewaywifi=$(grep gatewayWifi /opt/breakout/check_ssh.sh | cut -d "'" -f2)
 currentuser=$(whoami)
 dnsserver=$(cat /etc/resolv.conf | sed -n -e '/nameserver/,$p' | awk '{print $2}')
 currentSSID=$(iwgetid -r)
-sshIP=$(netstat -tnpa | grep 'ESTABLISHED.*ssh' | grep -v "127.0.0.1:22" | awk '{ print $4 }' | cut -f1 -d':' | sort | uniq)
+sshIP=$(ss -ntpa | grep 'ESTAB.*"ssh"' | grep -v "127.0.0.1:22" | awk '{ print $4 }' | cut -f1 -d':' | sort | uniq)
  
 echo "
            ____                 _               _    

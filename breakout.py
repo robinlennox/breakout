@@ -1,189 +1,191 @@
-#!/usr/bin/env python
-# By Robin Lennox - twitter.com/robberbear
+#!/usr/bin/env python3
+"""Breakout — automatically break out of a restricted network.
+
+Scans for open firewall ports and establishes a reverse tunnel back to a
+callback server via TCP, fake-TCP, UDP, or ICMP.
+"""
 
 import argparse
 import os
 import subprocess
 import sys
 import time
+from typing import Optional, Tuple
 
-from lib.CreateTunnel import initialiseTunnel
-from lib.IPCheck import getIP
-from lib.Layout import banner, colour
-from lib.ScriptManagement import checkRunningState
+from lib.create_tunnel import initialise_tunnel
+from lib.ip_check import get_ip
+from lib.layout import banner, colour
+from lib.script_management import check_running_state
+from lib.utils import get_config, setup_logging
 
-import configparser
-
-config = configparser.ConfigParser()
-config.read('/opt/breakout/lib/config.ini')
-
-# Import Colour Scheme
-G, Y, B, R, W = colour()
-
-def parser_error(errmsg):
-    print("Usage: python {0} [Options] use -h for help".format(sys.argv[0]))
-    print(R + "[x] Error: {0}".format(errmsg) + W)
-    sys.exit()
+config = get_config()
 
 
-def parse_args():
+# ---------------------------------------------------------------------------
+# Argument parsing
+# ---------------------------------------------------------------------------
+
+def parse_args() -> argparse.Namespace:
+    """Parse and return command-line arguments."""
     parser = argparse.ArgumentParser(
-        epilog="\tExample: \rpython {0} -c 1.2.3.4".format(sys.argv[0]))
-    parser.error = parser_error
-    parser._optionals.title = "OPTIONS"
-    parser.add_argument('-a', '--aggressive',
-                        help='Aggressive scan, all', nargs='?', default=False)
+        description="Breakout — network breakout & tunneling tool",
+        epilog=f"\tExample: \rpython3 {sys.argv[0]} -c 1.2.3.4",
+    )
     parser.add_argument(
-        '-c', '--callback', help='Enable call back to server', nargs='?', default='')
+        "-a", "--aggressive", action="store_true",
+        help="Aggressive scan — try all 65k ports",
+    )
     parser.add_argument(
-        '-n', '--nameserver', help='Provide Nameserver for DNS callback', nargs='?', default='')
+        "-c", "--callback", type=str, default=None,
+        help="Callback server IP address",
+    )
     parser.add_argument(
-        '-p', '--password', help='Password used for UDP callback', nargs='?', default='passwd')
+        "-n", "--nameserver", type=str, default=None,
+        help="Nameserver for DNS callback",
+    )
     parser.add_argument(
-        '-r', '--recon', help='Enable the recon module', nargs='?', default=False)
+        "-p", "--password", type=str, default=None,
+        help="Password for UDP tunnel (default: from config.ini)",
+    )
     parser.add_argument(
-        '-t', '--tunnel', help='Enable auto tunneling', nargs='?', default=False)
-    parser.add_argument('-v', '--verbose', help='Enable Verbosity and display results in realtime', nargs='?',
-                        default=False)
+        "-r", "--recon", action="store_true",
+        help="Enable the reconnaissance module",
+    )
+    parser.add_argument(
+        "-t", "--tunnel", action="store_true",
+        help="Enable automatic tunneling",
+    )
+    parser.add_argument(
+        "-v", "--verbose", action="store_true",
+        help="Enable verbose output",
+    )
     return parser.parse_args()
 
 
-def args_check():
-    args = parse_args()
+def validate_args(
+    args: argparse.Namespace,
+) -> Tuple[bool, Optional[str], str, Optional[str], bool, Optional[str], bool, bool]:
+    """Validate parsed arguments and return the resolved values.
 
-    global callbackIP
-    callbackIP = args.callback
-    if callbackIP is None:
-        print(
-            R + "[x] Error an IP address must be entered for callback to work" + W)
-        sys.exit(0)
-    elif callbackIP is "":
-        callbackIP = None
+    Returns:
+        (aggressive, callback_ip, tunnel_password, nameserver,
+         recon, sshuser, tunnel, verbose)
+    """
+    log = setup_logging(args.verbose)
 
-    global nameserver
+    callback_ip = args.callback
     nameserver = args.nameserver
-    if nameserver is None:
-        print(
-            R + "[x] Error an nameserver must be entered for DNS callback to work" + W)
-        sys.exit(0)
-    elif nameserver is "":
-        nameserver = None
+    tunnel_password = args.password if args.password is not None else config.tunnel.password
 
-    global tunnelPassword
-    tunnelPassword = args.password
-    if tunnelPassword is None:
-        print(R + "[x] Error no password was entered" + W)
-        sys.exit(0)
-    elif tunnelPassword is "":
-        tunnelPassword = None
+    if args.tunnel and nameserver and not callback_ip:
+        log.error("A callback IP (-c) must be provided when tunneling is enabled")
+        sys.exit(1)
 
-    if tunnelPassword and nameserver is '':
-        print(
-            R + "[x] Error an nameserver must be entered for DNS callback to work" + W)
-        sys.exit(0)
-
-    if args.tunnel is None:
-        tunnel = True
-    else:
-        tunnel = False
-    sshuser = None
-    passwd = open('/etc/passwd').read()
-    if 'sshuser' in passwd:
-        
-        for line in passwd.splitlines():
-            if "sshuser" in line:
-                sshuser = line.split(':')[0]
-    if tunnel is True and sshuser is not None:
-        tunnel = True
-    elif tunnel is True and sshuser is None:
-        print(R + "[x] Error: No sshuser!" + W)
-        print(
-            R + "[x] This needs to be setup for the auto tunnel to work" + W)
-        sys.exit(0)
-
-    # Check Verbosity
-    global verbose
-    verbose = args.verbose
-    if verbose or verbose is None:
-        verbose = True
-
-    # Check Recon
-    global recon
-    recon = args.recon
-    if recon or recon is None:
-        recon = True
-
-    # Check Aggressive
-    global aggressive
-    aggressive = args.aggressive
-    if aggressive or aggressive is None:
-        aggressive = True
-
-    return aggressive, callbackIP, tunnelPassword, nameserver, recon, sshuser, tunnel, verbose
-
-
-def getSSID(verbose):
+    # Discover sshuser from /etc/passwd
+    sshuser: Optional[str] = None
     try:
-        currentSSID = subprocess.check_output(
-            "iwconfig | grep ESSID | cut -d\\\" -f2 | grep -v \"off/any\"", shell=True, stderr=subprocess.STDOUT).decode('utf-8')
-        # Cleanup
-        currentSSID = currentSSID.rsplit("no wireless extensions.\n", 1)[1:]
-        currentSSID = '\n'.join(
-            [str(x) for x in currentSSID]).replace('\n', ', ')[2:-2]
-    except Exception as e:
-        if verbose:
-            print(e)
-        currentSSID = 'NOT CONNECTED'
-
-    return currentSSID
-
-
-def startRecon():
-    print(B + "\n[-] Running Recon" + W)
-    localIP = getIP()
-    subnetIP = "{0}.0".format('.'.join(localIP.split('.')[:-1]))
-    print(Y + "[*] IP Information" + W)
-    print(G + "[+] The IP address is {0}".format(localIP)+W)
-    print(G + "[+] The IP subnet is {0}/24".format(subnetIP)+W)
-
-
-def main():
-    isPi = os.path.isfile('/sys/class/leds/led1/trigger')
-
-    print(
-        G + "[+] Scan started at {0}".format(time.strftime("%b %-d %H:%M:%S") + W))
-
-    # Stop if already Running
-    checkRunningState("breakout.py")
-
-    aggressive, callbackIP, tunnelPassword, nameserver, recon, sshuser, tunnel, verbose = args_check()
-
-    currentSSID = getSSID(verbose)
-
-    if tunnel:
-        print(B + "[-] Auto Tunnel is enabled" + W)
-    else:
+        with open("/etc/passwd") as fh:
+            for line in fh:
+                if "sshuser" in line:
+                    sshuser = line.split(":")[0]
+                    break
+    except FileNotFoundError:
         pass
 
-    print(G + "[+] On SSID: {0}".format(currentSSID) + W)
-    if not os.geteuid() == 0:
-        sys.exit(R + '[x] Script must be run as root\n' + W)
+    if args.tunnel and sshuser is None:
+        log.error("No sshuser found — this needs to be set up for auto tunnel to work")
+        sys.exit(1)
+
+    return (
+        args.aggressive,
+        callback_ip,
+        tunnel_password,
+        nameserver,
+        args.recon,
+        sshuser,
+        args.tunnel,
+        args.verbose,
+    )
+
+
+# ---------------------------------------------------------------------------
+# Helpers
+# ---------------------------------------------------------------------------
+
+def get_ssid(verbose: bool) -> str:
+    """Return the current wireless SSID, or ``'NOT CONNECTED'``."""
+    try:
+        result = subprocess.run(
+            ["iwconfig"], capture_output=True, text=True, check=False,
+        )
+        for line in result.stdout.splitlines():
+            if "ESSID:" in line:
+                ssid = line.split("ESSID:")[1].strip().strip('"')
+                if ssid and ssid != "off/any":
+                    return ssid
+        return "NOT CONNECTED"
+    except Exception as exc:
+        if verbose:
+            print(exc)
+        return "NOT CONNECTED"
+
+
+def start_recon() -> None:
+    """Run basic network reconnaissance."""
+    log = setup_logging()
+    log.debug("Running Recon")
+    local_ip = get_ip()
+    subnet_ip = ".".join(local_ip.split(".")[:-1]) + ".0"
+    log.warning("IP Information")
+    log.info(f"The IP address is {local_ip}")
+    log.info(f"The IP subnet is {subnet_ip}/24")
+
+
+# ---------------------------------------------------------------------------
+# Main
+# ---------------------------------------------------------------------------
+
+def main() -> None:
+    """Entry point for Breakout."""
+    is_pi = os.path.isfile("/sys/class/leds/led1/trigger")
+
+    # Stop if already running
+    check_running_state("breakout.py")
+
+    args = parse_args()
+    aggressive, callback_ip, tunnel_password, nameserver, recon, sshuser, tunnel, verbose = validate_args(args)
+
+    log = setup_logging(verbose)
+    log.info(f"Scan started at {time.strftime('%b %-d %H:%M:%S')}")
+
+    current_ssid = get_ssid(verbose)
+
+    if tunnel:
+        log.debug("Auto Tunnel is enabled")
+
+    log.info(f"On SSID: {current_ssid}")
+
+    if os.geteuid() != 0:
+        log.error("Script must be run as root")
+        sys.exit(1)
 
     if verbose:
-        print(B + "[-] Verbosity is enabled" + W)
+        log.debug("Verbosity is enabled")
 
     if aggressive:
-        print(B + "[-] Aggressive is enabled" + W)
+        log.debug("Aggressive is enabled")
 
-    # Check for open ports and Tunnel
-    initialiseTunnel(aggressive, callbackIP, config, currentSSID,
-                     tunnelPassword, isPi, nameserver, sshuser, tunnel, verbose, )
+    # Check for open ports and tunnel
+    initialise_tunnel(
+        aggressive, callback_ip, config, current_ssid,
+        tunnel_password, is_pi, nameserver, sshuser, tunnel, verbose,
+    )
 
     if recon:
-        startRecon()
+        start_recon()
 
 
 if __name__ == "__main__":
-    if config.getboolean('DEFAULT','SHOWBANNER') is True:
+    if config.show_banner:
         banner()
     main()

@@ -1,103 +1,225 @@
-#!/usr/bin/env python
-# By Robin Lennox - twitter.com/robberbear
-
-from lib.Layout import colour
-from pexpect import pxssh
-from scapy.all import IP, TCP, sr1
-import subprocess
-import time
+#!/usr/bin/env python3
+"""Tunnel setup and verification helpers for Breakout."""
 
 import logging
+import subprocess
+import time
+from typing import Optional
+
+from pexpect import pxssh
+from scapy.all import IP, TCP, sr1
+
 logging.getLogger("scapy.runtime").setLevel(logging.ERROR)
 
-# Import Colour Scheme
-G, Y, B, R, W = colour()
+log = logging.getLogger("breakout")
 
 
-def openPort(port, ip):
+def is_port_open(port: int | str, ip: str) -> bool:
+    """Send a TCP SYN to *ip*:*port* and return *True* if SYN-ACK is received."""
     try:
-        response = sr1(IP(dst=ip)/TCP(dport=int(port),
-                                      flags="S"), verbose=False, timeout=2)
-        while response:
-            if response[TCP].flags == 18:
-                return True
-            else:
-                return False
-    except Exception as e:
-        print("[!] openPort:", e)
+        response = sr1(
+            IP(dst=ip) / TCP(dport=int(port), flags="S"),
+            verbose=False, timeout=2,
+        )
+        if response and response.haslayer(TCP) and response[TCP].flags == 18:
+            return True
+        return False
+    except Exception as exc:
+        log.warning(f"is_port_open: {exc}")
         return False
 
 
-def udp2rawTunnelAttempt(callbackIP, tunnelIP, tunnelType, tunnelPort, listenPort, localPort, tunnelPassword):
-    returnResult = False
+def udp2raw_tunnel_attempt(
+    callback_ip: str,
+    tunnel_ip: str,
+    tunnel_type: str,
+    tunnel_port: int,
+    listen_port: int,
+    local_port: int,
+    tunnel_password: str,
+) -> bool:
+    """Attempt a single udp2raw + kcptun tunnel connection."""
     try:
-        subprocess.check_output(
-            'pkill udp2raw && pkill kcptun_client', shell=True)
-    except Exception as e:
+        subprocess.run(["pkill", "udp2raw"], capture_output=True, check=False)
+        subprocess.run(["pkill", "kcptun_client"], capture_output=True, check=False)
+    except Exception:
         pass
 
+    udp2raw_cmd = [
+        "udp2raw", "-c", f"-r{callback_ip}:{listen_port}", f"-l0.0.0.0:{tunnel_port}",
+        "--raw-mode", tunnel_type, "-k", tunnel_password, "-a"
+    ]
+    kcptun_cmd = [
+        "kcptun_client", "-r", f"127.0.0.1:{tunnel_port}", "-l", f":{local_port}",
+        "-mode", "fast2", "-mtu", "1300"
+    ]
+
     try:
-        subprocess.check_output('udp2raw -c -r{0}:{1} -l0.0.0.0:{2} --raw-mode {3} -k"{4}" >/dev/null 2>&1 &'.format(
-            callbackIP, listenPort, tunnelPort, tunnelType, tunnelPassword), shell=True)
-        subprocess.check_output(
-            'kcptun_client -r "127.0.0.1:{0}" -l ":{1}" -mode fast2 -mtu 1300 >/dev/null 2>&1 &'.format(tunnelPort, localPort), shell=True)
+        log.debug(f"Running: {' '.join(udp2raw_cmd)}")
+        subprocess.Popen(
+            udp2raw_cmd,
+            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL
+        )
+
+        log.debug(f"Running: {' '.join(kcptun_cmd)}")
+        subprocess.Popen(
+            kcptun_cmd,
+            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL
+        )
+
         time.sleep(5)
-        command = "timeout -t 2 nc 127.0.0.1 {0}".format(localPort)
-        output = subprocess.Popen(
-            command.split(), stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-        if "SSH" in str(output.communicate()):
-            returnResult = True
 
-        return returnResult
-    except Exception as e:
-        print(e)
-        return returnResult
+        nc_cmd = f"timeout 5 bash -c 'nc 127.0.0.1 {local_port} < /dev/null | head -1'"
+        log.debug(f"Verifying tunnel: nc 127.0.0.1 {local_port}")
+        result = subprocess.run(
+            nc_cmd, shell=True,
+            capture_output=True, text=True, check=False,
+        )
+        nc_output = (result.stdout + result.stderr).strip()
+        if nc_output:
+            log.debug(f"nc response: {nc_output}")
+
+        return "SSH" in result.stdout + result.stderr
+    except Exception as exc:
+        log.error(f"Tunnel attempt failed: {exc}")
+        return False
 
 
-def udp2rawTunnel(callbackIP, tunnelIP, tunnelType, tunnelPort, localPort, listenPort, tunnelPassword, verbose):
-    count = 0
-    stopCount = 5
-    while (count < stopCount):
+def udp2raw_tunnel(
+    callback_ip: str,
+    tunnel_ip: str,
+    tunnel_type: str,
+    tunnel_port: int,
+    local_port: int,
+    listen_port: int,
+    tunnel_password: str,
+    verbose: bool,
+) -> bool:
+    """Retry *udp2raw_tunnel_attempt* up to 5 times."""
+    for attempt in range(5):
         if verbose:
-            print(B+"[-] Attempting {0} Tunnel".format(tunnelType)+W)
+            log.debug(
+                f"Attempting {tunnel_type} tunnel (attempt {attempt + 1}/5) "
+                f"to {callback_ip} — udp2raw port {listen_port}, "
+                f"kcptun port {tunnel_port}, local port {local_port}"
+            )
         time.sleep(5)
-        if udp2rawTunnelAttempt(callbackIP, tunnelIP, tunnelType, tunnelPort, listenPort, localPort, tunnelPassword):
+        if udp2raw_tunnel_attempt(
+            callback_ip, tunnel_ip, tunnel_type, tunnel_port,
+            listen_port, local_port, tunnel_password,
+        ):
             return True
-            break
-        else:
-            # Restricts Attempts
-            count = count + 1
     return False
 
 
-def checkTunnel(ipAddr, portNumber):
-    failedMessage = R+"[x] Failed connect, trying again."+W
-    # Timeout 10 is used for RAW DNS Tunnel as this is slow to connect.
-    s = pxssh.pxssh(timeout=10,)
+def check_tunnel(ip_addr: str, port_number: int | str) -> bool:
+    """Test if an SSH tunnel can be established to *ip_addr*:*port_number*."""
+    s = pxssh.pxssh(timeout=10)
     try:
-        testConn = s.login(ipAddr, 'myusername', 'mypassword',
-                           port=portNumber, auto_prompt_reset=False)
+        test_conn = s.login(
+            ip_addr, "myusername", "mypassword",
+            port=port_number, auto_prompt_reset=False,
+        )
         s.close()
-        if testConn:
-            return True
-        else:
-            print(failedMessage)
+        return bool(test_conn)
+    except pxssh.ExceptionPxssh as exc:
+        if "could not set shell prompt" in str(exc):
+            log.error("Failed connect, trying again.")
             return False
-        # Should never get here
-        # print s.login (ipAddr, 'myusername', 'mypassword', auto_prompt_reset=False)
-        # print "failedMessage"
-        # return False
-    except pxssh.ExceptionPxssh as e:
-            # DNS Tunnel setup but not routable.
-        if "could not set shell prompt" in str(e):
-            print(failedMessage)
-            # print str(e)
-            return False
-        else:
-            # print G+"[+] SSH Tunnel Created!"+W
-            # print str(e)
-            return True
-    except:
-        # Catch all
-        print(failedMessage)
+        # Other pxssh errors may indicate the port is reachable
+        return True
+    except Exception:
+        log.error("Failed connect, trying again.")
         return False
+
+
+# ---------------------------------------------------------------------------
+# DNS Tunnel (iodine)
+# ---------------------------------------------------------------------------
+
+def kill_iodine() -> None:
+    """Kill any running iodine processes."""
+    subprocess.run(["pkill", "iodine"], capture_output=True, check=False)
+
+
+def call_iodine(mode_flags: str, password: str, nameserver: str, verbose: bool, timeout: int = 30) -> bool:
+    """Start iodine with the given mode flags and verify the tunnel is connected."""
+    kill_iodine()
+    time.sleep(1)
+
+    cmd = ["iodine", "-f"]
+    cmd.extend(mode_flags.split())
+    cmd.extend(["-P", password, nameserver])
+
+    if verbose:
+        log.debug(f"Running: {' '.join(cmd)}")
+
+    try:
+        proc = subprocess.Popen(
+            cmd,
+            stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+        )
+        # Wait for the tunnel to actually connect (not just interface creation)
+        for i in range(timeout):
+            time.sleep(1)
+
+            # Check if iodine is still running
+            if proc.poll() is not None:
+                remaining = proc.stderr.read().decode(errors="replace").strip() if proc.stderr else ""
+                if "No suitable DNS query type" in remaining:
+                    log.error("DNS tunnel failed — nameserver is not resolving queries (check your DNS records)")
+                elif "bad password" in remaining.lower():
+                    log.error("DNS tunnel failed — incorrect password")
+                elif "connection refused" in remaining.lower():
+                    log.error("DNS tunnel failed — iodined server is not running or unreachable")
+                elif remaining:
+                    log.error(f"DNS tunnel failed — {remaining.splitlines()[-1]}")
+                else:
+                    log.error("DNS tunnel failed — iodine exited unexpectedly")
+                return False
+
+            # Check if dns0 has an IP address assigned (not just created)
+            result = subprocess.run(
+                ["ip", "-4", "addr", "show", "dns0"],
+                capture_output=True, text=True, check=False,
+            )
+            if "inet " not in result.stdout:
+                if verbose and i % 5 == 0:
+                    log.debug(f"Waiting for iodine tunnel... ({i}/{timeout}s)")
+                continue
+
+            # dns0 has an IP and iodine is still running — tunnel is up
+            log.info("iodine tunnel connected and verified")
+            return True
+
+        log.error("iodine tunnel timed out — interface never came up or no connectivity")
+        return False
+    except FileNotFoundError:
+        log.error("iodine binary not found — install iodine first")
+        return False
+    except Exception as exc:
+        log.error(f"iodine failed: {exc}")
+        return False
+
+
+def dns_tunnel(password: str, nameserver: str, verbose: bool) -> bool:
+    """Try to establish a DNS tunnel via iodine — RAW mode first, then fallback."""
+    # Try RAW mode first (fastest)
+    if verbose:
+        log.info("Attempting DNS tunnel using RAW mode")
+    if call_iodine("-O RAW", password, nameserver, verbose, 30):
+        log.info("DNS Tunnel using RAW mode setup.")
+        return True
+    kill_iodine()
+
+    # Fallback: direct mode (slow but more compatible)
+    if verbose:
+        log.info("RAW mode failed, attempting DNS tunnel in direct mode (slow)")
+    if call_iodine("-r -I1", password, nameserver, verbose, 100):
+        log.info("DNS Tunnel in direct mode setup (slow).")
+        return True
+    kill_iodine()
+
+    return False
+
+
