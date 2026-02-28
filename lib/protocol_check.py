@@ -15,8 +15,6 @@ log = logging.getLogger("breakout")
 
 def check_icmp(target: str = DEFAULT_DNS_RESOLVER) -> bool:
     """Return *True* if ICMP echo to *target* gets a reply.
-
-    Fix #6: uses configurable DNS resolver instead of hardcoded 8.8.8.8.
     """
     packet = IP(dst=target, ttl=20) / ICMP()
     return bool(sr1(packet, timeout=5, verbose=False))
@@ -24,8 +22,6 @@ def check_icmp(target: str = DEFAULT_DNS_RESOLVER) -> bool:
 
 def check_dns(resolver: str = DEFAULT_DNS_RESOLVER) -> Optional[str]:
     """Attempt a DNS lookup via *resolver* and return the response summary.
-
-    Fix #6: uses configurable DNS resolver instead of hardcoded 8.8.8.8.
     """
     for _ in range(3):
         try:

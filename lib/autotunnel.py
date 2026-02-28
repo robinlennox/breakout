@@ -61,12 +61,13 @@ def check_ssh_status(callback_ip: str, callback_ssh_port: str) -> bool:
         log.error(f"Existing tunnel {callback_ip} is down")
         return False
 
-def setup_auto_tunnel(gateway_wifi, sshuser: str, tunnel_ip: str, tunnel_port, tunnel_type: str) -> None:
+def setup_auto_tunnel(gateway_wifi, sshuser: str, sshkey: str, tunnel_ip: str, tunnel_port, tunnel_type: str) -> None:
     """Generate the check_ssh.sh script from the template."""
     shutil.copy(str(CHECK_SSH_BAK), str(CHECK_SSH_LOC))
     replace_text(CHECK_SSH_LOC, "SET_IP", tunnel_ip)
     replace_text(CHECK_SSH_LOC, "SET_PORT", tunnel_port)
     replace_text(CHECK_SSH_LOC, "SET_USER", sshuser)
+    replace_text(CHECK_SSH_LOC, "SET_KEY", sshkey)
     replace_text(CHECK_SSH_LOC, "TUNNEL_TYPE", tunnel_type)
     replace_text(CHECK_SSH_LOC, "GATEWAY_WIFI", gateway_wifi)
     log.info("Setup remote tunnel configuration file")

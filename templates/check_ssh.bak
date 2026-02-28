@@ -16,9 +16,9 @@ checkPortOpen=$(nc -z -v -w10 ${callbackIP} ${callbackPort} 2>&1)
 isPi='/sys/class/leds/led1/trigger'
 
 if [ "${checkRunningState}" -lt 3 ]; then
-    if [[ "${checkPortOpen}" == *"open"* ]]; then
+    if [[ "${checkPortOpen}" == *"open"* ]] || [[ "${checkPortOpen}" == *"succeeded!"* ]] || [[ "${checkPortOpen}" == *"Connection to"* ]]; then
         if [ -z "${checkSSHTunnel}" ]; then
-            ssh -f -N -R ${randomPort}:localhost:22 ${sshUser}@${callbackIP} -p${callbackPort} -oStrictHostKeyChecking=no -i /home/${sshUser}/.ssh/id_rsa &>/dev/null
+            ssh -f -N -R ${randomPort}:localhost:22 ${sshUser}@${callbackIP} -p${callbackPort} -oStrictHostKeyChecking=no -i SET_KEY &>/dev/null
             # Turn Off Power LED to indicate that SSH Tunnel Created
             if [ -f  "${isPi}" ]; then
                 sh -c 'echo gpio >/sys/class/leds/led1/trigger'

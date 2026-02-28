@@ -4,7 +4,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     python3 \
     python3-pip \
     python3-dev \
+    openssh-server \
     openssh-client \
+    sudo \
     wireless-tools \
     iproute2 \
     net-tools \
@@ -17,6 +19,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     iodine \
     dnsutils \
     && rm -rf /var/lib/apt/lists/*
+
+# Setup SSH daemon directory
+RUN mkdir -p /run/sshd
 
 # Install udp2raw (client)
 RUN wget -q https://github.com/wangyu-/udp2raw-tunnel/releases/download/20181113.0/udp2raw_binaries.tar.gz -P /tmp \
@@ -41,5 +46,9 @@ COPY . .
 RUN mkdir -p logs configs \
     && touch configs/ignore_ssid
 
-ENTRYPOINT ["python3", "breakout.py"]
+# Start SSH daemon and breakout
+RUN echo '#!/bin/bash\n/usr/sbin/sshd\nexec python3 breakout.py "$@"' > docker-entrypoint.sh \
+    && chmod +x docker-entrypoint.sh
+
+ENTRYPOINT ["/opt/breakout/docker-entrypoint.sh"]
 CMD ["-h"]

@@ -44,7 +44,7 @@ _VALID_KEYS = {
     },
     "TUNNEL": {
         "checkexisting", "faketcp", "icmp", "tcp", "udp", "dns",
-        "waittime", "password",
+        "waittime", "password", "sshkey", "sshuser",
     },
 }
 
@@ -79,6 +79,8 @@ class TunnelConfig:
     dns: bool = True
     wait_time: int = 10
     password: str = "passwd"
+    sshkey: str = "/opt/breakout/keys/id_rsa"
+    sshuser: str = "tunnel"
 
 @dataclass
 class BreakoutConfig:
@@ -139,6 +141,8 @@ def get_config() -> BreakoutConfig:
             dns=cp.getboolean("TUNNEL", "DNS", fallback=True),
             wait_time=cp.getint("TUNNEL", "WAITTIME", fallback=10),
             password=cp.get("TUNNEL", "PASSWORD", fallback="passwd"),
+            sshkey=cp.get("TUNNEL", "SSHKEY", fallback="/opt/breakout/keys/id_rsa"),
+            sshuser=cp.get("TUNNEL", "SSHUSER", fallback="tunnel"),
         ),
     )
     return _config

@@ -11,12 +11,13 @@ import subprocess
 import sys
 import time
 from typing import Optional, Tuple
+from pathlib import Path
 
 from lib.tunnel import initialise_tunnel
 from lib.ip_check import get_ip
 from lib.layout import banner, colour
 from lib.script_management import check_running_state
-from lib.utils import get_config, get_ssid, setup_logging
+from lib.utils import get_config, get_ssid, setup_logging, BASE_DIR
 
 config = get_config()
 
@@ -56,8 +57,12 @@ def parse_args() -> argparse.Namespace:
         help="Enable automatic tunneling",
     )
     parser.add_argument(
+        "-k", "--key", type=str, default=None,
+        help="Path to SSH private key (default: from config.ini)",
+    )
+    parser.add_argument(
         "-u", "--user", type=str, default=None,
-        help="SSH user for auto-tunnel (default: auto-detect from /etc/passwd)",
+        help="Remote SSH user for auto-tunnel (default: from config.ini)",
     )
     parser.add_argument(
         "-v", "--verbose", action="store_true",
@@ -81,7 +86,7 @@ def validate_args(
 
     Returns:
         (aggressive, callback_ip, tunnel_password, nameserver,
-         recon, sshuser, tunnel, verbose, dry_run)
+         recon, sshuser, sshkey, tunnel, verbose, dry_run)
     """
     log = setup_logging(args.verbose)
 
@@ -94,21 +99,38 @@ def validate_args(
         if not args.recon and not args.status:
             log.warning("No callback IP (-c) or nameserver (-n) specified — limited functionality")
 
-    # Discover or use provided sshuser
-    sshuser: Optional[str] = args.user
-    if sshuser is None:
-        try:
-            with open("/etc/passwd") as fh:
-                for line in fh:
-                    if "sshuser" in line:
-                        sshuser = line.split(":")[0]
-                        break
-        except FileNotFoundError:
-            pass
+    # Resolve sshuser and sshkey
+    sshuser: str = args.user if args.user is not None else config.tunnel.sshuser
+    sshkey: str = args.key if args.key is not None else config.tunnel.sshkey
 
-    if args.tunnel and sshuser is None:
-        log.error("No sshuser found — provide one with -u or set up auto-tunnel first")
-        sys.exit(1)
+    if args.tunnel and not Path(sshkey).exists():
+        if callback_ip:
+            log.warning(f"SSH key not found at {sshkey} — attempting auto-setup...")
+            setup_script = BASE_DIR / "setup" / "setup_auto_tunnel.sh"
+            if setup_script.exists():
+                try:
+                    setup_args = ["bash", str(setup_script), callback_ip, "22", "Auto-provisioned Drop-box"]
+                    if args.verbose:
+                        setup_args.append("-v")
+                    subprocess.run(
+                        setup_args,
+                        check=True
+                    )
+                    # Re-read config in case setup_auto_tunnel updated the SSHUSER
+                    import configparser
+                    cp = configparser.ConfigParser()
+                    cp.read(BASE_DIR / "configs" / "config.ini")
+                    if cp.has_option("TUNNEL", "SSHUSER"):
+                        sshuser = cp.get("TUNNEL", "SSHUSER")
+                except subprocess.CalledProcessError:
+                    log.error("Auto-setup failed. Please run setup_auto_tunnel.sh manually.")
+                    sys.exit(1)
+            else:
+                log.error(f"Setup script not found at {setup_script}")
+                sys.exit(1)
+        else:
+            log.error(f"SSH key not found at {sshkey} and no callback IP provided to auto-setup!")
+            sys.exit(1)
 
     return (
         args.aggressive,
@@ -117,6 +139,7 @@ def validate_args(
         nameserver,
         args.recon,
         sshuser,
+        sshkey,
         args.tunnel,
         args.verbose,
         args.dry_run,
@@ -214,7 +237,7 @@ def main() -> int:
         show_status()
         return 0
 
-    aggressive, callback_ip, tunnel_password, nameserver, recon, sshuser, tunnel, verbose, dry_run = validate_args(args)
+    aggressive, callback_ip, tunnel_password, nameserver, recon, sshuser, sshkey, tunnel, verbose, dry_run = validate_args(args)
 
     log = setup_logging(verbose)
     log.info(f"Scan started at {time.strftime('%b %-d %H:%M:%S')}")
@@ -242,7 +265,7 @@ def main() -> int:
     # Check for open ports and tunnel
     success = initialise_tunnel(
         aggressive, callback_ip, config, current_ssid,
-        tunnel_password, is_pi, nameserver, sshuser, tunnel, verbose,
+        tunnel_password, is_pi, nameserver, sshuser, sshkey, tunnel, verbose,
         dry_run=dry_run,
     )
 

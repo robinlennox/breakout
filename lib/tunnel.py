@@ -21,14 +21,14 @@ from lib.utils import (
 
 log = logging.getLogger("breakout")
 
-def success_message(ip_addr: str, port: int | str, sshuser: Optional[str]) -> None:
+def success_message(ip_addr: str, port: int | str, sshuser: Optional[str], sshkey: str) -> None:
     """Print connection instructions after a successful tunnel."""
     proxy_port = SOCKS_PROXY_PORT
     log.info("------------------------------")
     if sshuser:
         log.info(
             f"Port forward using: ssh -f -N -D {proxy_port} {sshuser}@{ip_addr} "
-            f"-p{port} -i /home/{sshuser}/.ssh/id_rsa"
+            f"-p{port} -i {sshkey}"
         )
     else:
         log.info(f"Port forward example: ssh -f -N -D {proxy_port} root@{ip_addr} -p{port}")
@@ -70,7 +70,7 @@ def check_ports(aggressive: bool, config: BreakoutConfig, verbose: bool) -> List
     return callback_port
 
 def callback_tcp(
-    callback_ip: str, config: BreakoutConfig, sshuser: Optional[str],
+    callback_ip: str, config: BreakoutConfig, sshuser: Optional[str], sshkey: str,
     tunnel_password: str, nameserver: Optional[str], verbose: bool,
     callback_port: List[str],
 ) -> Tuple[str, Optional[str], Optional[str], bool]:
@@ -90,7 +90,7 @@ def callback_tcp(
                     if is_port_open(attempt_port, callback_ip):
                         if check_tunnel(callback_ip, attempt_port):
                             log.info("SSH is Open")
-                            success_message(callback_ip, attempt_port, sshuser)
+                            success_message(callback_ip, attempt_port, sshuser, sshkey)
                             return callback_ip, attempt_port, "Open Port", True
                         else:
                             log.error(f"Port {attempt_port} open on IP {callback_ip} but unable to connect via SSH")
@@ -110,7 +110,7 @@ def callback_tcp(
 def _setup_non_tcp_tunnel(
     callback_ip: str, nameserver: Optional[str], tunnel_ip: str,
     tunnel_type: str, tunnel_port: int, local_port: int, listen_port: int,
-    sshuser: Optional[str], tunnel_password: str, verbose: bool,
+    sshuser: Optional[str], sshkey: str, tunnel_password: str, verbose: bool,
 ) -> bool:
     """Try to establish a single non-TCP tunnel type."""
     log.warning(f"Trying a Udp2raw-tunnel using {tunnel_type}.")
@@ -119,7 +119,7 @@ def _setup_non_tcp_tunnel(
         if check_tunnel(tunnel_ip, local_port):
             log.info(f"A Udp2raw-tunnel {tunnel_type} tunnel can be setup!")
             log.debug(f"An {tunnel_type} Tunnel is not as fast as a TCP Tunnel")
-            success_message(tunnel_ip, local_port, sshuser)
+            success_message(tunnel_ip, local_port, sshuser, sshkey)
             return True
         else:
             log.error(f"{tunnel_type} Enabled but unable to create {tunnel_type} Tunnel")
@@ -128,7 +128,7 @@ def _setup_non_tcp_tunnel(
     return False
 
 def callback_non_tcp(
-    callback_ip: str, config: BreakoutConfig, sshuser: Optional[str],
+    callback_ip: str, config: BreakoutConfig, sshuser: Optional[str], sshkey: str,
     tunnel_password: str, nameserver: Optional[str], verbose: bool,
 ) -> Tuple[str, int, Optional[str], bool]:
     """Attempt non-TCP tunnels: faketcp → UDP → ICMP."""
@@ -156,7 +156,7 @@ def callback_non_tcp(
         if getattr(config.tunnel, tunnel_type):
             if _setup_non_tcp_tunnel(
                 callback_ip, nameserver, tunnel_ip, tunnel_type,
-                ports["tunnel"], local_port, ports["listen"], sshuser, tunnel_password, verbose,
+                ports["tunnel"], local_port, ports["listen"], sshuser, sshkey, tunnel_password, verbose,
             ):
                 return tunnel_ip, local_port, tunnel_type, True
         elif verbose:
@@ -171,7 +171,7 @@ def callback_non_tcp(
             if _setup_non_tcp_tunnel(
                 callback_ip, nameserver, tunnel_ip, "icmp",
                 icmp_ports["tunnel"], local_port, icmp_ports["listen"],
-                sshuser, tunnel_password, verbose,
+                sshuser, sshkey, tunnel_password, verbose,
             ):
                 return tunnel_ip, local_port, "icmp", True
         else:
@@ -182,7 +182,7 @@ def callback_non_tcp(
     return tunnel_ip, local_port, None, False
 
 def callback_dns(
-    config: BreakoutConfig, sshuser: Optional[str],
+    config: BreakoutConfig, sshuser: Optional[str], sshkey: str,
     tunnel_password: str, nameserver: Optional[str], verbose: bool,
 ) -> Tuple[str, int, Optional[str], bool]:
     """Attempt a DNS tunnel via iodine as a last-resort fallback."""
@@ -210,7 +210,7 @@ def callback_dns(
             )
             if ping.returncode == 0:
                 log.info("Existing iodine tunnel detected and working — reusing it")
-                success_message(tunnel_ip, tunnel_port, sshuser)
+                success_message(tunnel_ip, tunnel_port, sshuser, sshkey)
                 return tunnel_ip, tunnel_port, "dns", True
             else:
                 if verbose:
@@ -283,7 +283,7 @@ def callback_dns(
         log.info("DNS tunnel established via iodine")
         # Verify SSH is reachable through the tunnel
         if check_tunnel(tunnel_ip, tunnel_port):
-            success_message(tunnel_ip, tunnel_port, sshuser)
+            success_message(tunnel_ip, tunnel_port, sshuser, sshkey)
             return tunnel_ip, tunnel_port, "dns", True
         else:
             log.error("DNS tunnel up but SSH not reachable on tunnel interface")
@@ -295,7 +295,7 @@ def callback_dns(
 
 def quick_scan(
     callback_port: str, callback_ip: str, config: BreakoutConfig,
-    sshuser: Optional[str], verbose: bool,
+    sshuser: Optional[str], sshkey: str, verbose: bool,
 ) -> bool:
     """Quick-check if the callback port is already open and SSH-capable."""
     if not config.scan.quick:
@@ -307,7 +307,7 @@ def quick_scan(
         if verbose:
             log.warning(f"Quick check if port {callback_port} is accessible.")
         log.info("SSH tunnel possible!")
-        success_message(callback_ip, callback_port, sshuser)
+        success_message(callback_ip, callback_port, sshuser, sshkey)
         return True
 
     if verbose:
@@ -317,7 +317,7 @@ def quick_scan(
 def initialise_tunnel(
     aggressive: bool, callback_ip: Optional[str], config: BreakoutConfig,
     current_ssid: str, tunnel_password: str, is_pi: bool,
-    nameserver: Optional[str], sshuser: Optional[str],
+    nameserver: Optional[str], sshuser: Optional[str], sshkey: str,
     tunnel: bool, verbose: bool, *, dry_run: bool = False,
 ) -> bool:
     """Main entry point — scan for open ports and establish the best available tunnel.
@@ -417,23 +417,23 @@ def initialise_tunnel(
     # Only attempt quick_scan and TCP/non-TCP if we have a callback_ip
     tunnel_status = False
     if callback_ip:
-        tunnel_status = quick_scan(callback_port, callback_ip, config, sshuser, verbose)
+        tunnel_status = quick_scan(callback_port, callback_ip, config, sshuser, sshkey, verbose)
 
         if not tunnel_status:
             open_ports = check_ports(aggressive, config, verbose)
 
             tunnel_ip, tunnel_port, tunnel_type, tunnel_status = callback_tcp(
-                callback_ip, config, sshuser, tunnel_password, nameserver, verbose, open_ports,
+                callback_ip, config, sshuser, sshkey, tunnel_password, nameserver, verbose, open_ports,
             )
             if not tunnel_status:
                 tunnel_ip, tunnel_port, tunnel_type, tunnel_status = callback_non_tcp(
-                    callback_ip, config, sshuser, tunnel_password, nameserver, verbose,
+                    callback_ip, config, sshuser, sshkey, tunnel_password, nameserver, verbose,
                 )
 
     # DNS tunnel only needs nameserver, not callback_ip — always try as last resort
     if not tunnel_status:
         tunnel_ip, tunnel_port, tunnel_type, tunnel_status = callback_dns(
-            config, sshuser, tunnel_password, nameserver, verbose,
+            config, sshuser, sshkey, tunnel_password, nameserver, verbose,
         )
 
     if not tunnel_status:
@@ -443,7 +443,7 @@ def initialise_tunnel(
     successful_connection = True
 
     if tunnel:
-        setup_auto_tunnel(gateway_wifi, sshuser, tunnel_ip, tunnel_port, tunnel_type)
+        setup_auto_tunnel(gateway_wifi, sshuser, sshkey, tunnel_ip, tunnel_port, tunnel_type)
         result = subprocess.run(
             ["bash", str(CHECK_SSH_LOC)], capture_output=True, text=True, check=False,
         )
