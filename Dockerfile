@@ -1,6 +1,5 @@
 FROM debian:trixie-slim
 
-ENV HOSTNAME="breakout"
 RUN apt-get update && apt-get install -y --no-install-recommends \
     python3 \
     python3-pip \
@@ -19,6 +18,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     gcc \
     iodine \
     dnsutils \
+    nano \
+    iptables \
     && rm -rf /var/lib/apt/lists/*
 
 # Setup SSH daemon directory and breakout user

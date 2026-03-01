@@ -74,14 +74,10 @@ function main {
     echo "*/1 * * * * root bash ${BREAKOUT_DIRECTORY}/open_ports.sh > /dev/null 2>&1" | tee -a /etc/crontab
 
     printf "${RED}"
-    echo '        ____                 _               _    '
-    echo '       |  _ \               | |             | |   '
-    echo '       | |_) |_ __ ___  __ _| | _____  _   _| |_  '
-    echo '       |  _ <| '"'"'__/ _ \/ _` | |/ / _ \| | | | __| '
-    echo '       | |_) | | |  __/ (_| |   < (_) | |_| | |_  '
-    echo '       |____/|_|  \___|\__,_|_|\_\___/ \__,_|\__| '
+    echo '                        '
+    echo '[--|->]  b r e a k o u t'
     printf "${YELLOW}"
-    echo '       #Coded By Robin Lennox      ....is now installed!'
+    echo '# Coded By Robin Lennox      ....is now installed!'
     printf "${NORMAL}"
 }
 

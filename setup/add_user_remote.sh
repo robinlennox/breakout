@@ -6,7 +6,8 @@
 
 username=$1
 sshkey=$(echo $2 | base64 --decode)
-clientDesc="${@:3}"
+privkey=$(echo $3 | base64 --decode)
+clientDesc="${@:4}"
 
 # Create the drop box user account
 useradd -m -r -s /bin/bash ${username} -c "${clientDesc}" > /dev/null
@@ -15,7 +16,14 @@ useradd -m -r -s /bin/bash ${username} -c "${clientDesc}" > /dev/null
 mkdir /home/${username}/.ssh > /dev/null
 #touch /home/${username}/.ssh/authorized_keys
 echo no-pty,no-X11-forwarding ${sshkey} >> /home/${username}/.ssh/authorized_keys
+echo "${privkey}" > /home/${username}/.ssh/id_rsa
+echo "${sshkey}" > /home/${username}/.ssh/id_rsa.pub
+
+chmod 700 /home/${username}/.ssh
+chmod 600 /home/${username}/.ssh/id_rsa
+chmod 644 /home/${username}/.ssh/id_rsa.pub
 chown -R ${username} /home/${username} > /dev/null
+
 echo "Match User ${username}
     PasswordAuthentication no" >> /etc/ssh/sshd_config
 

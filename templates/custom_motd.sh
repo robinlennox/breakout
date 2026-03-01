@@ -18,16 +18,20 @@ currentuser=$USER
 dnsserver=$(awk '/^nameserver/ {print $2}' /etc/resolv.conf)
 currentSSID=$(iwgetid -r)
 sshIP=$(ss -ntp state established | awk '/"ssh"/ && $4 !~ /127\.0\.0\.1:22/ {sub(/:[^:]+$/, "", $4); print $4}' | sort -u)
-echo "
-           ____                 _               _    
-          |  _ \               | |             | |
-          | |_) |_ __ ___  __ _| | _____  _   _| |
-          |  _ <| '__/ _ \/ _\` | |/ / _ \| | | | __|
-          | |_) | | |  __/ (_| |   < (_) | |_| | |
-          |____/|_|  \___|\__,_|_|\_\___/ \__,_|\__|
-                  # Coded By Robin Lennox
 
-  [System]   $(hostname) (Up: ${up})
+# Check if running in Docker
+if [ -f /.dockerenv ]; then
+    sysinfo="$(hostname) [Docker] (Up: ${up})"
+else
+    sysinfo="$(hostname) (Up: ${up})"
+fi
+
+echo "
+
+  [--|->]  b r e a k o u t
+  # Coded By Robin Lennox
+
+  [System]   ${sysinfo}
   [Space]    ${used} used, ${avail} free
   [Time]     $(date)
   [Tunnel]   ${tunneltype} - Auth IP: ${sshIP:-None}

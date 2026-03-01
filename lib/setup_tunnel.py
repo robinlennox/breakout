@@ -42,7 +42,6 @@ def udp2raw_tunnel_attempt(
     """Attempt a single udp2raw + kcptun tunnel connection."""
     try:
         subprocess.run(["pkill", "udp2raw"], capture_output=True, check=False)
-        subprocess.run(["pkill", "kcptun_client"], capture_output=True, check=False)
     except Exception:
         pass
 
@@ -101,6 +100,17 @@ def udp2raw_tunnel(
     verbose: bool,
 ) -> bool:
     """Retry *udp2raw_tunnel_attempt* up to 5 times."""
+    
+    # Prerequisite port check
+
+    try:
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+            s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+            s.bind(('', local_port))
+    except OSError:
+        log.error(f"Port {local_port} is already in use by another process. Skipping {tunnel_type} tunnel.")
+        return False
+
     for attempt in range(5):
         if verbose:
             log.debug(

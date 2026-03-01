@@ -62,8 +62,12 @@ Run breakout without installing dependencies on the host:
 
 ```bash
 docker build --network=host -t breakout .
-docker run --rm --net=host --cap-add=NET_ADMIN --cap-add=NET_RAW \
-  breakout -c <SERVER_IP> -p passwd -v
+sudo docker run --rm --name breakout-box --cap-add=NET_ADMIN --cap-add=NET_RAW --network=host \
+  -v ~/.ssh/id_rsa:/tmp/host_key:ro \
+  -v /opt/breakout/configs:/opt/breakout/configs \
+  -v /opt/breakout/keys:/opt/breakout/keys \
+  -e HOST_SSH_KEY=/tmp/host_key \
+  breakout -c <SERVER_IP> -t -v
 ```
 
 > `--net=host` is required for network interface access, `NET_ADMIN`/`NET_RAW` for raw packet crafting.

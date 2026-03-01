@@ -86,12 +86,12 @@ function getopentunnels() {
     for i in "${!options[@]}"; do
         if [ "${choices[i]}" == "x" ]; then
             selected=true
-            IFS=',' read -r _ _ ip _ <<< "${options[i]}"
+            IFS=',' read -r u _ ip _ <<< "${options[i]}"
             local target_ip="${ip%:*}"
             local target_port="${ip##*:}"
             
-            echo "[*] Connecting to ${ip}..."
-            ssh -q -o MACs=hmac-sha2-256 -o StrictHostKeyChecking=no "breakout@${target_ip}" -p "${target_port}"
+            echo "[*] Connecting to ${ip} using ${u}'s key..."
+            ssh -q -o MACs=hmac-sha2-256 -o StrictHostKeyChecking=no -i "/home/${u}/.ssh/id_rsa" "breakout@${target_ip}" -p "${target_port}"
         fi
     done
 

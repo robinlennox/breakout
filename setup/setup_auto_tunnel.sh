@@ -4,42 +4,63 @@
 #author         :Robin Lennox
 #==============================================================================
 
-function banner {
-    if which tput >/dev/null 2>&1; then
-        ncolors=$(tput colors 2>/dev/null)
-    fi
-    if [ -t 1 ] && [ -n "$ncolors" ] && [ "$ncolors" -ge 8 ]; then
-      RED="$(tput setaf 1)"
-      YELLOW="$(tput setaf 3)"
-      NORMAL="$(tput sgr0)"
-    else
-      RED=""
-      YELLOW=""
-      NORMAL=""
-    fi
+if which tput >/dev/null 2>&1; then
+    ncolors=$(tput colors 2>/dev/null)
+fi
+if [ -n "$ncolors" ] && [ "$ncolors" -ge 8 ]; then
+    RED="\033[91m"
+    GREEN="\033[92m"
+    YELLOW="\033[93m"
+    BLUE="\033[94m"
+    NORMAL="\033[0m"
+else
+    # Fallback to Bright ANSI codes for headless Python subprocesses
+    RED="\033[91m"
+    GREEN="\033[92m"
+    YELLOW="\033[93m"
+    BLUE="\033[94m"
+    NORMAL="\033[0m"
+fi
 
+PLUS="${GREEN}[+]"
+STAR="${BLUE}[*]"
+EXCL="${YELLOW}[!]"
+CROSS="${RED}[x]"
+DBG="${YELLOW}[DEBUG]"
+
+
+function banner {
     printf "${RED}"
-    echo '        ____                 _               _    '
-    echo '       |  _ \               | |             | |   '
-    echo '       | |_) |_ __ ___  __ _| | _____  _   _| |_  '
-    echo '       |  _ <| '"'"'__/ _ \/ _` | |/ / _ \| | | | __| '
-    echo '       | |_) | | |  __/ (_| |   < (_) | |_| | |_  '
-    echo '       |____/|_|  \___|\__,_|_|\_\___/ \__,_|\__| '
+    echo "[--|->]  b r e a k o u t"
     printf "${YELLOW}"
-    echo '       #Coded By Robin Lennox      ....let the setup begin!'
+    echo "# Coded By Robin Lennox      ....let the setup begin!"
     printf "${NORMAL}"
 }
-
 
 function addUser {
     # Generate standalone key for breakout auto-tunnels (no local user needed)
     KEY_DIR="/opt/breakout/keys"
     KEY_PATH="${KEY_DIR}/id_rsa"
     
-    echo "[+] Generating breakout tunnel key at ${KEY_PATH}"
+    if [ "$VERBOSE" -eq 1 ]; then
+        if [ "$VERBOSE" -eq 1 ]; then
+            echo -e "${PLUS} Checking for breakout tunnel key at ${KEY_PATH}${NORMAL}"
+        fi
+    fi
     mkdir -p "${KEY_DIR}"
     if [ ! -f "${KEY_PATH}" ]; then
+        if [ "$VERBOSE" -eq 1 ]; then
+            if [ "$VERBOSE" -eq 1 ]; then
+                echo -e "${PLUS} Generating breakout tunnel key at ${KEY_PATH}${NORMAL}"
+            fi
+        fi
         ssh-keygen -f "${KEY_PATH}" -N "" > /dev/null 2>&1
+    else
+        if [ "$VERBOSE" -eq 1 ]; then
+            if [ "$VERBOSE" -eq 1 ]; then
+                echo -e "${STAR} Breakout tunnel key already exists. Skipping generation.${NORMAL}"
+            fi
+        fi
     fi
     chown -R root:root "${KEY_DIR}"
     chmod 700 "${KEY_DIR}"
@@ -48,17 +69,34 @@ function addUser {
     # Setup the local 'breakout' user so the server can access this device
     # (If running in Docker, this creates the user inside the container)
     if ! id "breakout" >/dev/null 2>&1; then
-        echo "[+] Creating local 'breakout' user for incoming access"
+        if [ "$VERBOSE" -eq 1 ]; then
+            if [ "$VERBOSE" -eq 1 ]; then
+                echo -e "${PLUS} Creating local 'breakout' user for incoming access${NORMAL}"
+            fi
+        fi
         # Debian/Ubuntu style useradd since alpine's adduser -D doesn't work everywhere
         useradd -m -s /bin/bash breakout 2>/dev/null || adduser --disabled-password --gecos "" breakout 2>/dev/null
         
         mkdir -p /home/breakout/.ssh
         password=$(cat /dev/urandom | tr -dc 'a-zA-Z0-9' | fold -w 32 | head -n 1)
-        ssh -o StrictHostKeyChecking=no ${sshLogin} -p${sshPort} cat /opt/breakout/keys/id_rsa.pub > /home/breakout/.ssh/authorized_keys
+        ssh -o StrictHostKeyChecking=no -o IdentitiesOnly=yes -i /opt/breakout/keys/id_rsa ${sshLogin} -p${sshPort} cat /opt/breakout/keys/id_rsa.pub > /home/breakout/.ssh/authorized_keys
         echo -e "${password}\n${password}" | passwd breakout >/dev/null 2>&1
         echo "breakout ALL=(ALL) NOPASSWD:ALL" >> /etc/sudoers
-        chown -R breakout:breakout /home/breakout
-        chmod 700 /home/breakout/.ssh
+    fi
+    
+    # Always ensure the local public key is authorized to access the breakout user
+    if [ -f "/opt/breakout/keys/id_rsa.pub" ]; then
+        mkdir -p /home/breakout/.ssh
+        # Ensure it ends with a newline before appending
+        echo "" >> /home/breakout/.ssh/authorized_keys
+        cat /opt/breakout/keys/id_rsa.pub >> /home/breakout/.ssh/authorized_keys
+        # Clean up any blank lines we just made
+        sed -i '/^$/d' /home/breakout/.ssh/authorized_keys
+    fi
+
+    chown -R breakout:breakout /home/breakout
+    chmod 700 /home/breakout/.ssh
+    if [ -f "/home/breakout/.ssh/authorized_keys" ]; then
         chmod 600 /home/breakout/.ssh/authorized_keys
     fi
 }
@@ -68,14 +106,22 @@ function setupCnCUser {
     CONFIG_PATH="/opt/breakout/configs/config.ini"
     if [ -f "$CONFIG_PATH" ] && grep -q "^SSHUSER" "$CONFIG_PATH" 2>/dev/null; then
         username=$(grep "^SSHUSER" "$CONFIG_PATH" | cut -d'=' -f2 | tr -d ' ')
-        echo "[+] Using existing username ${username} from config.ini"
+        if [ "$VERBOSE" -eq 1 ]; then
+            if [ "$VERBOSE" -eq 1 ]; then
+                echo -e "${PLUS} Using existing username ${username} from config.ini${NORMAL}"
+            fi
+        fi
     else
         # We use a unique username for this dropsbox based on its hostname and a random id
         rand_id=$(( ( RANDOM % 1000 ) + 1 ))
         username="tunnel-$(hostname)-${rand_id}"
     fi
 
-    echo "[+] Setting up root SSH keys to communicate with server"
+    if [ "$VERBOSE" -eq 1 ]; then
+        if [ "$VERBOSE" -eq 1 ]; then
+            echo -e "${PLUS} Setting up root SSH keys to communicate with server${NORMAL}"
+        fi
+    fi
     addUser
 
     SSH_COPY_OPTS=(-o "StrictHostKeyChecking=no")
@@ -86,25 +132,53 @@ function setupCnCUser {
         SSH_OPTS+=(-o "IdentityFile=$HOST_SSH_KEY")
     fi
 
-    echo "[+] Checking if user ${username} exists remotely..."
+    if [ "$VERBOSE" -eq 1 ]; then
+        if [ "$VERBOSE" -eq 1 ]; then
+            echo -e "${PLUS} Checking if user ${username} exists remotely...${NORMAL}"
+        fi
+    fi
     USER_EXISTS=$(ssh "${SSH_OPTS[@]}" -p${sshPort} ${sshLogin} "id ${username}" 2>/dev/null)
 
     if [[ -n "$USER_EXISTS" ]]; then
-        echo "[*] User ${username} already exists on the remote server. Skipping remote provisioning."
+        if [ "$VERBOSE" -eq 1 ]; then
+            if [ "$VERBOSE" -eq 1 ]; then
+                echo -e "${STAR} User ${username} already exists on the remote server. Skipping remote provisioning.${NORMAL}"
+            fi
+        fi
     else
-        echo "[+] User not found. Provisioning keys and creating user ${username} remotely..."
+        if [ "$VERBOSE" -eq 1 ]; then
+            if [ "$VERBOSE" -eq 1 ]; then
+                echo -e "${PLUS} User not found. Provisioning keys and creating user ${username} remotely...${NORMAL}"
+            fi
+        fi
         
         if [ "$VERBOSE" -eq 1 ]; then
-            echo "[DEBUG] Running: ssh-copy-id -i /opt/breakout/keys/id_rsa.pub ${SSH_COPY_OPTS[@]} -p ${sshPort} ${sshLogin}"
+            if [ "$VERBOSE" -eq 1 ]; then
+                if [ "$VERBOSE" -eq 1 ]; then
+                    echo -e "${DBG} Running: ssh-copy-id -i /opt/breakout/keys/id_rsa.pub ${SSH_COPY_OPTS[@]} -p ${sshPort} ${sshLogin}${NORMAL}"
+                fi
+            fi
         fi
 
         COPY_OUTPUT=$(ssh-copy-id -i /opt/breakout/keys/id_rsa.pub "${SSH_COPY_OPTS[@]}" -p ${sshPort} ${sshLogin} 2>&1)
         if [ $? -ne 0 ]; then
             if [ "$VERBOSE" -eq 1 ]; then
-                echo "[!] Remote setup failed: $COPY_OUTPUT"
-                echo "[!] Command was: ssh-copy-id -i /opt/breakout/keys/id_rsa.pub ${SSH_COPY_OPTS[@]} -p ${sshPort} ${sshLogin}"
+                if [ "$VERBOSE" -eq 1 ]; then
+                    if [ "$VERBOSE" -eq 1 ]; then
+                        echo -e "${EXCL} Remote setup failed: $COPY_OUTPUT${NORMAL}"
+                    fi
+                fi
+                if [ "$VERBOSE" -eq 1 ]; then
+                    if [ "$VERBOSE" -eq 1 ]; then
+                        echo -e "${EXCL} Command was: ssh-copy-id -i /opt/breakout/keys/id_rsa.pub ${SSH_COPY_OPTS[@]} -p ${sshPort} ${sshLogin}${NORMAL}"
+                    fi
+                fi
             else
-                echo "[!] Remote setup failed"
+                if [ "$VERBOSE" -eq 1 ]; then
+                    if [ "$VERBOSE" -eq 1 ]; then
+                        echo -e "${EXCL} Remote setup failed${NORMAL}"
+                    fi
+                fi
             fi
             exit 1
         fi
@@ -112,36 +186,65 @@ function setupCnCUser {
         addUser
 
         sshPub=$(cat /opt/breakout/keys/id_rsa.pub | base64 | tr -d '\n')
+        sshPriv=$(cat /opt/breakout/keys/id_rsa | base64 | tr -d '\n')
         
         LOCAL_SCRIPT="/opt/breakout/setup/add_user_remote.sh"
         if [ ! -f "$LOCAL_SCRIPT" ]; then
-            echo "[!] LOCAL_SCRIPT $LOCAL_SCRIPT not found. Cannot set up remote user."
+            if [ "$VERBOSE" -eq 1 ]; then
+                if [ "$VERBOSE" -eq 1 ]; then
+                    echo -e "${EXCL} LOCAL_SCRIPT $LOCAL_SCRIPT not found. Cannot set up remote user.${NORMAL}"
+                fi
+            fi
             exit 1
         fi
 
         if [ "$VERBOSE" -eq 1 ]; then
-            echo "[DEBUG] Running: ssh ${SSH_OPTS[@]} -p${sshPort} ${sshLogin} \"bash -s\" < $LOCAL_SCRIPT ${username} \"${sshPub}\" \"${clientDesc}\""
+            if [ "$VERBOSE" -eq 1 ]; then
+                if [ "$VERBOSE" -eq 1 ]; then
+                    echo -e "${DBG} Running: ssh ${SSH_OPTS[@]} -p${sshPort} ${sshLogin} \"bash -s\" < $LOCAL_SCRIPT ${username} \"${sshPub}\" \"${sshPriv}\" \"${clientDesc}\"${NORMAL}"
+                fi
+            fi
         fi
 
-        SSH_OUTPUT=$(ssh "${SSH_OPTS[@]}" -p${sshPort} ${sshLogin} "bash -s" < "$LOCAL_SCRIPT" ${username} "${sshPub}" "${clientDesc}" 2>&1)
+        SSH_OUTPUT=$(ssh "${SSH_OPTS[@]}" -p${sshPort} ${sshLogin} "bash -s" < "$LOCAL_SCRIPT" ${username} "${sshPub}" "${sshPriv}" "${clientDesc}" 2>&1)
         echo ${SSH_OUTPUT}
         if [ $? -ne 0 ]; then
             if [ "$VERBOSE" -eq 1 ]; then
-                echo "[!] Remote setup failed: $SSH_OUTPUT"
-                echo "[!] Command was: ssh ${SSH_OPTS[@]} -p${sshPort} ${sshLogin} \"bash -s\" < $LOCAL_SCRIPT ${username} \"${sshPub}\" \"${clientDesc}\""
+                if [ "$VERBOSE" -eq 1 ]; then
+                    if [ "$VERBOSE" -eq 1 ]; then
+                        echo -e "${EXCL} Remote setup failed: $SSH_OUTPUT${NORMAL}"
+                    fi
+                fi
+                if [ "$VERBOSE" -eq 1 ]; then
+                    if [ "$VERBOSE" -eq 1 ]; then
+                        echo -e "${EXCL} Command was: ssh ${SSH_OPTS[@]} -p${sshPort} ${sshLogin} \"bash -s\" < $LOCAL_SCRIPT ${username} \"${sshPub}\" \"${sshPriv}\" \"${clientDesc}\"${NORMAL}"
+                    fi
+                fi
             else
-                echo "[!] Remote setup failed"
+                if [ "$VERBOSE" -eq 1 ]; then
+                    if [ "$VERBOSE" -eq 1 ]; then
+                        echo -e "${EXCL} Remote setup failed${NORMAL}"
+                    fi
+                fi
             fi
             exit 1
         fi
-        echo "[+] Remote setup complete."
+        if [ "$VERBOSE" -eq 1 ]; then
+            if [ "$VERBOSE" -eq 1 ]; then
+                echo -e "${PLUS} Remote setup complete.${NORMAL}"
+            fi
+        fi
     fi
     
     # Automatically update config.ini
     CONFIG_PATH="/opt/breakout/configs/config.ini"
 
     if [ ! -f "$CONFIG_PATH" ]; then
-        echo "[!] config.ini not found. Generating default config..."
+        if [ "$VERBOSE" -eq 1 ]; then
+            if [ "$VERBOSE" -eq 1 ]; then
+                echo -e "${EXCL} config.ini not found. Generating default config...${NORMAL}"
+            fi
+        fi
         cat <<EOF > "$CONFIG_PATH"
 [DEFAULT]
 SHOWBANNER = True
@@ -161,11 +264,19 @@ EOF
     fi
 
     if [ -f "$CONFIG_PATH" ]; then
-        echo "[+] Updating ${CONFIG_PATH} with new SSHUSER"
+        if [ "$VERBOSE" -eq 1 ]; then
+            if [ "$VERBOSE" -eq 1 ]; then
+                echo -e "${PLUS} Updating ${CONFIG_PATH} with new SSHUSER${NORMAL}"
+            fi
+        fi
         sed -i.bak "s/^SSHUSER.*/SSHUSER = ${username}/" "$CONFIG_PATH"
         rm -f "${CONFIG_PATH}.bak"
     else
-        echo "[!] Auto-update failed: Make sure to update your config.ini"
+        if [ "$VERBOSE" -eq 1 ]; then
+            if [ "$VERBOSE" -eq 1 ]; then
+                echo -e "${EXCL} Auto-update failed: Make sure to update your config.ini${NORMAL}"
+            fi
+        fi
         echo "    SSHKEY = /opt/breakout/keys/id_rsa"
         echo "    SSHUSER = ${username}"
     fi
@@ -187,12 +298,18 @@ while [ "$1" != "" ]; do
 done
 
 if [ -z "${sshLogin}" ] || [ -z "${sshPort}" ] || [ -z "${clientDesc}" ]; then
-  echo "[+] Installing only client packages"
-  echo "[x] For auto tunnel to work a port needs to be specified. E.G bash $(basename -- "$0") root@1.2.3.4 22 \"Dropped at Office 123\""
+  if [ "$VERBOSE" -eq 1 ]; then
+      if [ "$VERBOSE" -eq 1 ]; then
+          echo -e "${PLUS} Installing only client packages${NORMAL}"
+      fi
+  fi
+  if [ "$VERBOSE" -eq 1 ]; then
+      if [ "$VERBOSE" -eq 1 ]; then
+          echo -e "${CROSS} For auto tunnel to work a port needs to be specified. E.G bash $(basename -- ${NORMAL}"$0") root@1.2.3.4 22 \"Dropped at Office 123\""
+      fi
+  fi
   banner
   exit 1
 fi
 
-banner
 setupCnCUser
-rm -rf ~/.ssh/id_rsa*

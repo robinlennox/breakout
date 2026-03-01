@@ -118,14 +118,16 @@ def validate_args(
             try:
                 res = subprocess.run(ssh_args, capture_output=True, text=True, timeout=10)
                 if res.returncode != 0:
-                    log.warning(f"Remote account {sshuser} missing or check failed. Forcing setup.")
+                    if args.verbose:
+                        log.warning(f"Remote account {sshuser} missing or check failed. Forcing setup.")
                     run_setup = True
             except Exception as e:
                 log.debug(f"SSH Remote check error: {e}")
 
         if run_setup:
             if callback_ip:
-                log.warning("Attempting auto-setup to provision remote account...")
+                if args.verbose:
+                    log.warning("Attempting auto-setup to provision remote account...")
                 setup_script = BASE_DIR / "setup" / "setup_auto_tunnel.sh"
                 if setup_script.exists():
                     try:
