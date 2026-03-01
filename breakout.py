@@ -264,7 +264,7 @@ def main() -> int:
     aggressive, callback_ip, tunnel_password, nameserver, recon, sshuser, sshkey, tunnel, verbose, dry_run = validate_args(args)
 
     log = setup_logging(verbose)
-    log.info(f"Scan started at {time.strftime('%b %-d %H:%M:%S')}")
+    log.info(f"Scan started at {time.strftime('%b %-d %H:%M:%S %Z')}")
 
     current_ssid = get_ssid()
 

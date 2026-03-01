@@ -31,7 +31,7 @@ DBG="${YELLOW}[DEBUG]"
 
 function banner {
     printf "${RED}"
-    echo "[--|->]  b r e a k o u t"
+    echo "[--|->] b r e a k o u t"
     printf "${YELLOW}"
     echo "# Coded By Robin Lennox      ....let the setup begin!"
     printf "${NORMAL}"

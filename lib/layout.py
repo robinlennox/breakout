@@ -11,7 +11,7 @@ def banner() -> None:
 
     art = (
         R
-        + "\n[--|->]  b r e a k o u t\n"
+        + "\n[--|->] b r e a k o u t\n"
         + W + Y
         + "# Coded By Robin Lennox\n"
     )
