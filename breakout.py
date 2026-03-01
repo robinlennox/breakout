@@ -103,34 +103,56 @@ def validate_args(
     sshuser: str = args.user if args.user is not None else config.tunnel.sshuser
     sshkey: str = args.key if args.key is not None else config.tunnel.sshkey
 
-    if args.tunnel and not Path(sshkey).exists():
-        if callback_ip:
-            log.warning(f"SSH key not found at {sshkey} — attempting auto-setup...")
-            setup_script = BASE_DIR / "setup" / "setup_auto_tunnel.sh"
-            if setup_script.exists():
-                try:
-                    setup_args = ["bash", str(setup_script), callback_ip, "22", "Auto-provisioned Drop-box"]
-                    if args.verbose:
-                        setup_args.append("-v")
-                    subprocess.run(
-                        setup_args,
-                        check=True
-                    )
-                    # Re-read config in case setup_auto_tunnel updated the SSHUSER
-                    import configparser
-                    cp = configparser.ConfigParser()
-                    cp.read(BASE_DIR / "configs" / "config.ini")
-                    if cp.has_option("TUNNEL", "SSHUSER"):
-                        sshuser = cp.get("TUNNEL", "SSHUSER")
-                except subprocess.CalledProcessError:
-                    log.error("Auto-setup failed. Please run setup_auto_tunnel.sh manually.")
+    if args.tunnel:
+        run_setup = False
+        if not Path(sshkey).exists():
+            log.warning(f"SSH key not found at {sshkey}")
+            run_setup = True
+        elif callback_ip:
+            log.info(f"Verifying remote tunnel account {sshuser} on {callback_ip}...")
+            ssh_args = ["ssh", "-o", "StrictHostKeyChecking=no", "-o", "PasswordAuthentication=no"]
+            if not sys.stdout.isatty():
+                ssh_args.extend(["-o", "BatchMode=yes"])
+            ssh_args.extend([callback_ip, f"id {sshuser}"])
+            
+            try:
+                res = subprocess.run(ssh_args, capture_output=True, text=True, timeout=10)
+                if res.returncode != 0:
+                    log.warning(f"Remote account {sshuser} missing or check failed. Forcing setup.")
+                    run_setup = True
+            except Exception as e:
+                log.debug(f"SSH Remote check error: {e}")
+
+        if run_setup:
+            if callback_ip:
+                log.warning("Attempting auto-setup to provision remote account...")
+                setup_script = BASE_DIR / "setup" / "setup_auto_tunnel.sh"
+                if setup_script.exists():
+                    try:
+                        setup_args = ["bash", str(setup_script), callback_ip, "22", "Auto-provisioned Drop-box"]
+                        if args.verbose:
+                            setup_args.append("-v")
+                        subprocess.run(
+                            setup_args,
+                            check=True
+                        )
+                    except subprocess.CalledProcessError:
+                        log.error("Auto-setup failed. Please run setup_auto_tunnel.sh manually.")
+                        sys.exit(1)
+                else:
+                    log.error(f"Setup script not found at {setup_script}")
                     sys.exit(1)
             else:
-                log.error(f"Setup script not found at {setup_script}")
+                log.error(f"SSH key missing or account check failed, and no callback IP provided to auto-setup!")
                 sys.exit(1)
-        else:
-            log.error(f"SSH key not found at {sshkey} and no callback IP provided to auto-setup!")
-            sys.exit(1)
+
+    # Always re-read config for SSHUSER in case it was auto-provisioned
+    # or updated from a previous run
+    import configparser
+    cp = configparser.ConfigParser()
+    cp.read(BASE_DIR / "configs" / "config.ini")
+    if cp.has_option("TUNNEL", "SSHUSER"):
+        sshuser = cp.get("TUNNEL", "SSHUSER")
 
     return (
         args.aggressive,
@@ -269,8 +291,13 @@ def main() -> int:
         dry_run=dry_run,
     )
 
-    if recon:
-        start_recon()
+    if tunnel and success:
+        log.info("Keeping container alive for tunneling (Press Ctrl+C to exit)...")
+        try:
+            while True:
+                time.sleep(60)
+        except KeyboardInterrupt:
+            pass
 
     return 0 if success else 1
 

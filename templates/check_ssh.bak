@@ -23,7 +23,7 @@ if [ "${checkRunningState}" -lt 3 ]; then
             if [ -f  "${isPi}" ]; then
                 sh -c 'echo gpio >/sys/class/leds/led1/trigger'
             fi
-            echo "[+] Tunnel Created."
+            echo "Tunnel Created."
         fi
     else
         echo "[x] Tunnel Closed, removing check_ssh.sh."

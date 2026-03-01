@@ -43,7 +43,7 @@ function main {
     cp /etc/ssh/sshd_config /etc/ssh/sshd_config_orig
 
     echo "0" | tee /proc/sys/net/ipv4/icmp_echo_ignore_all
-    wget https://github.com/wangyu-/udp2raw-tunnel/releases/download/20181113.0/udp2raw_binaries.tar.gz -P /tmp && \
+    wget https://github.com/wangyu-/udp2raw/releases/download/20230206.0/udp2raw_binaries.tar.gz -P /tmp && \
     tar -xvf /tmp/udp2raw_binaries.tar.gz -C /usr/local/bin/ udp2raw_amd64 && \
     mv /usr/local/bin/udp2raw_amd64 /usr/local/bin/udp2raw && \
     chmod +x /usr/local/bin/udp2raw && \
@@ -69,7 +69,7 @@ function main {
     #Setup SSH Keys
     ssh-keygen -f ~/.ssh/id_rsa -N ""
 
-    #Crontob
+    #Crontab
     echo "*/1 * * * * root bash ${BREAKOUT_DIRECTORY}/tunnel_server.sh > /dev/null 2>&1" | tee -a /etc/crontab
     echo "*/1 * * * * root bash ${BREAKOUT_DIRECTORY}/open_ports.sh > /dev/null 2>&1" | tee -a /etc/crontab
 
@@ -81,7 +81,7 @@ function main {
     echo '       | |_) | | |  __/ (_| |   < (_) | |_| | |_  '
     echo '       |____/|_|  \___|\__,_|_|\_\___/ \__,_|\__| '
     printf "${YELLOW}"
-    echo '       #Coded By Robin Lennox - @robberbear      ....is now installed!'
+    echo '       #Coded By Robin Lennox      ....is now installed!'
     printf "${NORMAL}"
 }
 

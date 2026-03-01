@@ -6,7 +6,7 @@
 
 function banner {
     if which tput >/dev/null 2>&1; then
-        ncolors=$(tput colors)
+        ncolors=$(tput colors 2>/dev/null)
     fi
     if [ -t 1 ] && [ -n "$ncolors" ] && [ "$ncolors" -ge 8 ]; then
       RED="$(tput setaf 1)"
@@ -26,7 +26,7 @@ function banner {
     echo '       | |_) | | |  __/ (_| |   < (_) | |_| | |_  '
     echo '       |____/|_|  \___|\__,_|_|\_\___/ \__,_|\__| '
     printf "${YELLOW}"
-    echo '       #Coded By Robin Lennox - @robberbear      ....let the setup begin!'
+    echo '       #Coded By Robin Lennox      ....let the setup begin!'
     printf "${NORMAL}"
 }
 
@@ -64,9 +64,16 @@ function addUser {
 }
 
 function setupCnCUser {
-    # We use a unique username for this dropsbox based on its hostname and a random id
-    rand_id=$(( ( RANDOM % 1000 ) + 1 ))
-    username="tunnel-$(hostname)-${rand_id}"
+    # Check if a config already exists and has a username
+    CONFIG_PATH="/opt/breakout/configs/config.ini"
+    if [ -f "$CONFIG_PATH" ] && grep -q "^SSHUSER" "$CONFIG_PATH" 2>/dev/null; then
+        username=$(grep "^SSHUSER" "$CONFIG_PATH" | cut -d'=' -f2 | tr -d ' ')
+        echo "[+] Using existing username ${username} from config.ini"
+    else
+        # We use a unique username for this dropsbox based on its hostname and a random id
+        rand_id=$(( ( RANDOM % 1000 ) + 1 ))
+        username="tunnel-$(hostname)-${rand_id}"
+    fi
 
     echo "[+] Setting up root SSH keys to communicate with server"
     addUser
@@ -79,53 +86,80 @@ function setupCnCUser {
         SSH_OPTS+=(-o "IdentityFile=$HOST_SSH_KEY")
     fi
 
-    if [ "$VERBOSE" -eq 1 ]; then
-        echo "[DEBUG] Running: ssh-copy-id -i /opt/breakout/keys/id_rsa.pub ${SSH_COPY_OPTS[@]} -p ${sshPort} ${sshLogin}"
-    fi
+    echo "[+] Checking if user ${username} exists remotely..."
+    USER_EXISTS=$(ssh "${SSH_OPTS[@]}" -p${sshPort} ${sshLogin} "id ${username}" 2>/dev/null)
 
-    COPY_OUTPUT=$(ssh-copy-id -i /opt/breakout/keys/id_rsa.pub "${SSH_COPY_OPTS[@]}" -p ${sshPort} ${sshLogin} 2>&1)
-    if [ $? -ne 0 ]; then
+    if [[ -n "$USER_EXISTS" ]]; then
+        echo "[*] User ${username} already exists on the remote server. Skipping remote provisioning."
+    else
+        echo "[+] User not found. Provisioning keys and creating user ${username} remotely..."
+        
         if [ "$VERBOSE" -eq 1 ]; then
-            echo "[!] Remote setup failed: $COPY_OUTPUT"
-            echo "[!] Command was: ssh-copy-id -i /opt/breakout/keys/id_rsa.pub ${SSH_COPY_OPTS[@]} -p ${sshPort} ${sshLogin}"
-        else
-            echo "[!] Remote setup failed"
+            echo "[DEBUG] Running: ssh-copy-id -i /opt/breakout/keys/id_rsa.pub ${SSH_COPY_OPTS[@]} -p ${sshPort} ${sshLogin}"
         fi
-        exit 1
-    fi
 
-    addUser
+        COPY_OUTPUT=$(ssh-copy-id -i /opt/breakout/keys/id_rsa.pub "${SSH_COPY_OPTS[@]}" -p ${sshPort} ${sshLogin} 2>&1)
+        if [ $? -ne 0 ]; then
+            if [ "$VERBOSE" -eq 1 ]; then
+                echo "[!] Remote setup failed: $COPY_OUTPUT"
+                echo "[!] Command was: ssh-copy-id -i /opt/breakout/keys/id_rsa.pub ${SSH_COPY_OPTS[@]} -p ${sshPort} ${sshLogin}"
+            else
+                echo "[!] Remote setup failed"
+            fi
+            exit 1
+        fi
 
-    sshPub=$(cat /opt/breakout/keys/id_rsa.pub | base64 | tr -d '\n')
+        addUser
 
-    echo "[+] Creating user ${username} remotely"
-    
-    LOCAL_SCRIPT="/opt/breakout/setup/add_user_remote.sh"
-    if [ ! -f "$LOCAL_SCRIPT" ]; then
-        echo "[!] LOCAL_SCRIPT $LOCAL_SCRIPT not found. Cannot set up remote user."
-        exit 1
-    fi
+        sshPub=$(cat /opt/breakout/keys/id_rsa.pub | base64 | tr -d '\n')
+        
+        LOCAL_SCRIPT="/opt/breakout/setup/add_user_remote.sh"
+        if [ ! -f "$LOCAL_SCRIPT" ]; then
+            echo "[!] LOCAL_SCRIPT $LOCAL_SCRIPT not found. Cannot set up remote user."
+            exit 1
+        fi
 
-    if [ "$VERBOSE" -eq 1 ]; then
-        echo "[DEBUG] Running: ssh ${SSH_OPTS[@]} -p${sshPort} ${sshLogin} \"bash -s\" < $LOCAL_SCRIPT ${username} \"${sshPub}\" \"${clientDesc}\""
-    fi
-
-    SSH_OUTPUT=$(ssh "${SSH_OPTS[@]}" -p${sshPort} ${sshLogin} "bash -s" < "$LOCAL_SCRIPT" ${username} "${sshPub}" "${clientDesc}" 2>&1)
-    echo ${SSH_OUTPUT}
-    if [ $? -ne 0 ]; then
         if [ "$VERBOSE" -eq 1 ]; then
-            echo "[!] Remote setup failed: $SSH_OUTPUT"
-            echo "[!] Command was: ssh ${SSH_OPTS[@]} -p${sshPort} ${sshLogin} \"bash -s\" < $LOCAL_SCRIPT ${username} \"${sshPub}\" \"${clientDesc}\""
-        else
-            echo "[!] Remote setup failed"
+            echo "[DEBUG] Running: ssh ${SSH_OPTS[@]} -p${sshPort} ${sshLogin} \"bash -s\" < $LOCAL_SCRIPT ${username} \"${sshPub}\" \"${clientDesc}\""
         fi
-        exit 1
-    fi
 
-    echo "[+] Remote setup complete."
+        SSH_OUTPUT=$(ssh "${SSH_OPTS[@]}" -p${sshPort} ${sshLogin} "bash -s" < "$LOCAL_SCRIPT" ${username} "${sshPub}" "${clientDesc}" 2>&1)
+        echo ${SSH_OUTPUT}
+        if [ $? -ne 0 ]; then
+            if [ "$VERBOSE" -eq 1 ]; then
+                echo "[!] Remote setup failed: $SSH_OUTPUT"
+                echo "[!] Command was: ssh ${SSH_OPTS[@]} -p${sshPort} ${sshLogin} \"bash -s\" < $LOCAL_SCRIPT ${username} \"${sshPub}\" \"${clientDesc}\""
+            else
+                echo "[!] Remote setup failed"
+            fi
+            exit 1
+        fi
+        echo "[+] Remote setup complete."
+    fi
     
     # Automatically update config.ini
-    CONFIG_PATH="$(pwd)/configs/config.ini"
+    CONFIG_PATH="/opt/breakout/configs/config.ini"
+
+    if [ ! -f "$CONFIG_PATH" ]; then
+        echo "[!] config.ini not found. Generating default config..."
+        cat <<EOF > "$CONFIG_PATH"
+[DEFAULT]
+SHOWBANNER = True
+
+[TUNNEL]
+CHECKEXISTING = True
+FAKETCP = True
+ICMP = True
+TCP = False
+UDP = False
+DNS = True
+PASSWORD = passwd
+WAITTIME = 10
+SSHKEY = /opt/breakout/keys/id_rsa
+SSHUSER = tunnel
+EOF
+    fi
+
     if [ -f "$CONFIG_PATH" ]; then
         echo "[+] Updating ${CONFIG_PATH} with new SSHUSER"
         sed -i.bak "s/^SSHUSER.*/SSHUSER = ${username}/" "$CONFIG_PATH"

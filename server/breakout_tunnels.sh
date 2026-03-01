@@ -1,76 +1,103 @@
 #!/bin/bash
 #title                  :breakout_tunnels.sh
-#description            :Lists active reverse SSH tunnels connected to this callback server and provides a menu to connect to them.
+#description            :Lists active reverse SSH tunnels connected to this server and provides a menu to connect.
 #author                 :Robin Lennox
-#source                 :http://serverfault.com/a/298312
 #==============================================================================
 
-function getopentunnels {
+function getopentunnels() {
+    # Fast, single-pass extraction of active tunnel PIDs and IPs
+    local tunnels=$(ss -nlpt | awk '
+        /"sshd"|"sshd-session"/ && $4 ~ /^127\.0\.0\.1:/ {
+            match($0, /pid=[0-9]+/)
+            if(RSTART > 0) {
+                print substr($0, RSTART+4, RLENGTH-4), $4
+            }
+        }' | sort -u -k1,1)
 
-    sshProcesses=$(ss -ntpa | grep '"sshd"' | grep '\*' | grep '127.0.0.1' | grep -oP 'pid=\K[0-9]+' | sort -u)
-    if [ -z "${sshProcesses}" ]; then
-        echo 'Connect to Client'
-        echo '-----------------'
+    if [ -z "${tunnels}" ]; then
+        echo "Connect to Client"
+        echo "-----------------"
         echo "[x] No tunnels"
-        exit 1
-    else
-        options=()
-        for processid in ${sshProcesses}
-        do
-            ipAddr=$(ss -ntpa | grep '"sshd"' | grep '\*' | grep '127.0.0.1' | grep "pid=${processid}," | awk '{print $4}')
-            username=$(ps auxwww | grep -v 'grep' | grep ${processid} | grep sshd: | awk '{print $12}')
-            usernameComment=$(grep ${username} /etc/passwd | cut -d':' -f5)
-            sshtunneluptime=$(ps -eo pid,etime | grep ${processid} | awk '{print $2}')
-            echo "[+] Successful reverse shell by" ${username}"("${usernameComment}") on" ${ipAddr}" up for" ${sshtunneluptime}
-            options+=("${username},${usernameComment},${ipAddr},${sshtunneluptime}")
-        done
+        return 1
     fi
 
-    menu() {
-        if [ -z ${showmenu} ]; then
-            showmenu="1"
-            echo 'Connect to Client'
-            echo '-----------------'
-            for i in ${!options[@]}; do 
-                echo "${options[i]}" | while IFS=, read username usernameComment ipAddr sshtunneluptime
-                do
-                    printf "[%d%s] %s\n" $((i+1)) "${choices[i]}" "${username} (${usernameComment}) on ${ipAddr} up for ${sshtunneluptime}"
-                done
-            done
-            echo '-----------------'
-        fi
-     
-        if [[ $msg == *"Invalid option"* ]]; then
-          echo "${msg}";:
-        elif ! [[ $msg ]]; then
-            :
-        else
-          echo "${msg}"
-        fi
-    }
+    local options=()
+    local choices=()
+    
+    echo "Connect to Client"
+    echo "-----------------"
+    
+    # Process each tunnel
+    while read -r pid ipAddr; do
+        # Extract UID and uptime using ps to avoid username truncation
+        read -r uid uptime <<< $(ps -p "${pid}" -o uid=,etime= | tail -n1)
+        [ -z "${uid}" ] && continue # Skip if process died
+        
+        # Look up full passwd entry by UID to get the real username and comment
+        local passwd_entry=$(getent passwd "${uid}")
+        local username=$(echo "${passwd_entry}" | cut -d: -f1)
+        local user_comment=$(echo "${passwd_entry}" | cut -d: -f5 | cut -d, -f1)
+        
+        echo "[+] Successful reverse shell by ${username} (${user_comment}) on ${ipAddr} up for ${uptime}"
+        options+=("${username},${user_comment},${ipAddr},${uptime}")
+    done <<< "${tunnels}"
 
-    prompt="[-] Enter the number of the server to connect to. (ENTER when done): "
-    while menu && read -rp "${prompt}" num && [[ "${num}" ]]; do
-        [[ "$num" != *[![:digit:]]* ]] &&
-        (( num > 0 && num <= ${#options[@]} )) ||
-        { msg="[!] Invalid option: $num"; continue; }
-         msg="[*] Attempting to connect to number ${num}"; ((num--))
-        [[ "${choices[num]}" ]] && choices[num]="" || choices[num]="+"
-        break
+    # Menu System
+    local prompt="[-] Enter the number of the server to connect to. (ENTER when done): "
+    local num=""
+    local msg=""
+
+    while true; do
+        if [ -n "${msg}" ]; then
+            echo "${msg}"
+            msg=""
+        fi
+        
+        echo "-----------------"
+        for i in "${!options[@]}"; do
+            IFS=',' read -r u uc ip up <<< "${options[i]}"
+            local mark="${choices[i]:- }"
+            printf "[%d][%s] %s (%s) on %s up for %s\n" $((i+1)) "${mark}" "${u}" "${uc}" "${ip}" "${up}"
+        done
+        echo "-----------------"
+        
+        read -rp "${prompt}" num
+        [ -z "${num}" ] && break # Break on ENTER
+        
+        # Validate input
+        if [[ ! "${num}" =~ ^[0-9]+$ ]] || (( num < 1 || num > ${#options[@]} )); then
+            msg="[!] Invalid option: ${num}"
+            continue
+        fi
+        
+        # Toggle selection
+        local idx=$((num - 1))
+        if [ "${choices[idx]}" == "x" ]; then
+            choices[idx]=" "
+            msg="[*] Removed option ${num}"
+        else
+            choices[idx]="x"
+            msg="[*] Added option ${num}"
+        fi
     done
 
-    if [ -z "${msg}" ]; then
+    # Execute selected connections
+    local selected=false
+    for i in "${!options[@]}"; do
+        if [ "${choices[i]}" == "x" ]; then
+            selected=true
+            IFS=',' read -r _ _ ip _ <<< "${options[i]}"
+            local target_ip="${ip%:*}"
+            local target_port="${ip##*:}"
+            
+            echo "[*] Connecting to ${ip}..."
+            ssh -q -o MACs=hmac-sha2-256 -o StrictHostKeyChecking=no "breakout@${target_ip}" -p "${target_port}"
+        fi
+    done
+
+    if [ "${selected}" = false ]; then
         echo "[-] You selected nothing"
     fi
-    for i in ${!options[@]}; do 
-        [[ "${choices[i]}" ]] && { 
-            ipaddr=$(echo "${options[i]}" | cut -f3 -d"," | cut -f1 -d":");
-            port=$(echo "${options[i]}" | cut -f3 -d"," | cut -f2 -d":"); 
-            ssh -q -o MACs=hmac-sha2-256 -oStricthostKeyChecking=no breakout@${ipaddr} -p${port}; 
-            msg="";
-        }
-    done
 }
 
-showmenu=""
 getopentunnels

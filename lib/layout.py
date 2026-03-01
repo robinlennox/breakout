@@ -19,7 +19,7 @@ def banner() -> None:
                 | |_) | | |  __/ (_| |   < (_) | |_| | |_
                 |____/|_|  \___|\__,_|_|\_\___/ \__,_|\__|"""
         + W + Y
-        + "\n                # Coded By Robin Lennox - @robberbear\n"
+        + "\n                # Coded By Robin Lennox\n"
     )
     print(art)
 
