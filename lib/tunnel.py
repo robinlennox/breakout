@@ -58,11 +58,14 @@ def check_ports(aggressive: bool, config: BreakoutConfig, verbose: bool) -> List
         elif verbose:
             log.info("Config: Skipping traceroute scan")
 
-    if scan_results.open_ports:
-        callback_port = scan_results.open_ports
-        log.info(f"{len(callback_port)} open port/s found")
-    else:
-        log.error("No open port found.")
+    scanned = config.scan.portquiz or config.scan.traceroute
+
+    if scanned:
+        if scan_results.open_ports:
+            callback_port = scan_results.open_ports
+            log.info(f"{len(callback_port)} open port/s found")
+        else:
+            log.error("No open port found.")
 
     if scan_results.possible_ports:
         log.warning(f"{len(scan_results.possible_ports)} possible port/s found")
@@ -103,7 +106,11 @@ def callback_tcp(
         elif verbose:
             log.info("Config: Skipping TCP tunnel")
     else:
-        log.error(f"Can't attempt TCP Tunnel, no ports found open on IP {callback_ip}")
+        # If we scanned ports but found none, complain. Otherwise, note it was skipped.
+        if config.scan.portquiz or config.scan.traceroute:
+            log.error(f"Can't attempt TCP Tunnel, no ports found open on IP {callback_ip}")
+        elif verbose:
+            log.info("Config: Skipping TCP tunnel (no ports scanned)")
 
     return callback_ip, attempt_port, tunnel_type, status
 

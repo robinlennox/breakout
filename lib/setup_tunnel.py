@@ -111,6 +111,14 @@ def udp2raw_tunnel(
         log.error(f"Port {local_port} is already in use by another process. Skipping {tunnel_type} tunnel.")
         return False
 
+    try:
+        with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as s:
+            s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+            s.bind(('', tunnel_port))
+    except OSError:
+        log.error(f"Internal proxy port {tunnel_port} is already in use. Skipping {tunnel_type} tunnel.")
+        return False
+
     for attempt in range(5):
         if verbose:
             log.debug(
