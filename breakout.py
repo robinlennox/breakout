@@ -349,6 +349,14 @@ def main() -> int:
         log.critical("sshd is not running — reverse tunnels need a local SSH daemon. Start sshd first.")
         return 1
 
+    # Run recon if requested
+    if recon:
+        start_recon()
+
+    # If only recon was requested (no callback/nameserver/tunnel), exit early
+    if not callback_ip and not nameserver and not tunnel:
+        return 0
+
     # Check for open ports and tunnel
     success = initialise_tunnel(
         aggressive, callback_ip, config, current_ssid,
