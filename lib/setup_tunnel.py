@@ -87,7 +87,6 @@ def udp2raw_tunnel_attempt(
 
         time.sleep(5)
 
-        # Fix #7: replaced shell=True with direct subprocess call
         log.debug(f"Verifying tunnel: nc 127.0.0.1 {local_port}")
         result = subprocess.run(
             ["nc", "-w", "5", "127.0.0.1", str(local_port)],
@@ -155,9 +154,6 @@ def udp2raw_tunnel(
 
 def check_tunnel(ip_addr: str, port_number: int | str) -> bool:
     """Test if *ip_addr*:*port_number* has an SSH service by reading the banner.
-
-    Fix #2: replaced fake-credential pxssh login with a simple TCP banner check.
-    This avoids triggering fail2ban and is faster.
     """
     try:
         sock = socket.create_connection((ip_addr, int(port_number)), timeout=5)

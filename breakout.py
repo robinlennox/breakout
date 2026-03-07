@@ -69,6 +69,10 @@ def parse_args() -> argparse.Namespace:
         help="Enable verbose output",
     )
     parser.add_argument(
+        "-f", "--force", action="store_true",
+        help="Force tunnel recreation — kill existing tunnels and skip health checks",
+    )
+    parser.add_argument(
         "--dry-run", action="store_true",
         help="Show what would be done without creating tunnels",
     )
@@ -194,13 +198,13 @@ def validate_args(
             except Exception as e:
                 log.debug(f"Server check skipped: {e}")
 
-    # Always re-read config for SSHUSER in case it was auto-provisioned
+    # Always re-read config for SSH_USER in case it was auto-provisioned
     # or updated from a previous run
     import configparser
     cp = configparser.ConfigParser()
     cp.read(BASE_DIR / "configs" / "config.ini")
-    if cp.has_option("TUNNEL", "SSHUSER"):
-        sshuser = cp.get("TUNNEL", "SSHUSER")
+    if cp.has_option("TUNNEL", "SSH_USER"):
+        sshuser = cp.get("TUNNEL", "SSH_USER")
 
     return (
         args.aggressive,
@@ -308,8 +312,13 @@ def main() -> int:
         return 0
 
     aggressive, callback_ip, tunnel_password, nameserver, recon, sshuser, sshkey, tunnel, verbose, dry_run = validate_args(args)
+    force = args.force or config.tunnel.force_new_tunnel
 
     log = setup_logging(verbose)
+
+    if force:
+        log.warning("Force mode — existing tunnels will be torn down")
+
     log.info(f"Scan started at {time.strftime('%b %-d %H:%M:%S %Z')}")
 
     current_ssid = get_ssid()

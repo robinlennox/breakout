@@ -154,7 +154,6 @@ def callback_non_tcp(
         log.error(f"Non-TCP tunnels require {', '.join(missing)} — install before using")
         return tunnel_ip, local_port, None, False
 
-    # Use constants for port configs (#21)
     tunnel_configs = [
         ("faketcp", UDP2RAW_PORTS["faketcp"]),
         ("udp", UDP2RAW_PORTS["udp"]),
@@ -251,8 +250,6 @@ def callback_dns(
         log.error("DNS is not reachable — cannot create DNS tunnel")
         return tunnel_ip, tunnel_port, None, False
 
-    # Fix #15: Check NS delegation properly — verify the subdomain is delegated
-    # by querying the parent zone for NS records of the nameserver domain
     try:
         ns_result = subprocess.run(
             ["dig", "+short", "NS", nameserver],
@@ -331,7 +328,7 @@ def initialise_tunnel(
 ) -> bool:
     """Main entry point — scan for open ports and establish the best available tunnel.
 
-    Returns True if a tunnel was established, False otherwise (#23).
+    Returns True if a tunnel was established, False otherwise.
     """
     successful_connection = False
     timeout = "1800"  # 30 minutes
@@ -387,7 +384,7 @@ def initialise_tunnel(
     if current_ssh_tunnel(config, is_pi, ethernet_up, gateway_wifi, successful_connection, verbose):
         return True
 
-    # Dry-run mode (#22): show what would be done without actually tunneling
+    # Dry-run mode: show what would be done without actually tunneling
     if dry_run:
         log.info("DRY RUN: Would scan for open ports and attempt tunnels")
         if callback_ip:

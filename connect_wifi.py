@@ -24,9 +24,7 @@ IGNORE_SSID_FILE = BASE_DIR / "configs" / "ignore_ssid"
 # ---------------------------------------------------------------------------
 
 def attempt_wifi_connect(ssid_name: str, wireless_interface: str) -> bool:
-    """Try to connect to an open WiFi SSID and return *True* on success.
-
-    Fix #13: uses `ip` commands instead of deprecated `ifconfig`.
+    """Try to connect to an open WiFi SSID and return *True* on success..
     """
     subprocess.run(["rfkill", "unblock", "wifi"], check=False)
     subprocess.run(["rfkill", "unblock", "all"], check=False)
@@ -37,7 +35,6 @@ def attempt_wifi_connect(ssid_name: str, wireless_interface: str) -> bool:
 
     log.debug("Waiting for network to finish setting up")
 
-    # Fix #13: try available DHCP clients
     if shutil.which("dhclient"):
         subprocess.run(["dhclient", wireless_interface], check=False)
     elif shutil.which("dhcpcd"):

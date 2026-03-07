@@ -32,19 +32,20 @@ UDP2RAW_PORTS = {
     "faketcp": {"tunnel": 4001, "listen": 8856, "local": 4445},
     "udp": {"tunnel": 4002, "listen": 8857, "local": 4446},
 }
-DEFAULT_DNS_RESOLVER: str = "8.8.8.8"
+DEFAULT_DNS_RESOLVER: str = "8.8.8.8"  # fallback only; prefer config.scan.dns_resolver
 
-# Known valid config keys per section (for validation — #25)
+# Known valid config keys per section
 _VALID_KEYS = {
-    "DEFAULT": {"showbanner"},
-    "WIFI": {"connectwifi", "waittime"},
+    "DEFAULT": {"show_banner"},
+    "WIFI": {"connect_wifi", "wait_time"},
     "SCAN": {
-        "callbackport", "quick", "portquiz", "traceroute", "commonports",
-        "quicklimit", "quicklimitaggressive", "portscanthreads", "threadsaggressive",
+        "callback_port", "quick", "portquiz", "traceroute", "common_ports",
+        "quick_limit", "quick_limit_aggressive", "port_scan_threads",
+        "threads_aggressive", "dns_resolver",
     },
     "TUNNEL": {
-        "checkexisting", "faketcp", "icmp", "tcp", "udp", "dns",
-        "waittime", "password", "sshkey", "sshuser",
+        "check_existing", "fake_tcp", "icmp", "tcp", "udp", "dns",
+        "wait_time", "password", "ssh_key", "ssh_user", "force_new_tunnel",
     },
 }
 
@@ -68,6 +69,7 @@ class ScanConfig:
     quick_limit_aggressive: int = 100
     port_scan_threads: int = 1
     threads_aggressive: int = 400
+    dns_resolver: str = "8.8.8.8"
 
 @dataclass
 class TunnelConfig:
@@ -81,6 +83,7 @@ class TunnelConfig:
     password: str = "passwd"
     sshkey: str = "/opt/breakout/keys/id_rsa"
     sshuser: str = "tunnel"
+    force_new_tunnel: bool = False
 
 @dataclass
 class BreakoutConfig:
@@ -104,7 +107,7 @@ def get_config() -> BreakoutConfig:
         config_path = Path(__file__).parent.parent / "configs" / "config.ini"
     cp.read(str(config_path))
 
-    # Validate config keys (#25)
+    # Validate config keys
     logger = logging.getLogger("breakout")
     for section in cp.sections():
         valid = _VALID_KEYS.get(section.upper(), None)
@@ -116,33 +119,35 @@ def get_config() -> BreakoutConfig:
                 logger.warning(f"config.ini: unknown key '{key}' in [{section}]")
 
     _config = BreakoutConfig(
-        show_banner=cp.getboolean("DEFAULT", "SHOWBANNER", fallback=True),
+        show_banner=cp.getboolean("DEFAULT", "SHOW_BANNER", fallback=True),
         wifi=WifiConfig(
-            connect_wifi=cp.getboolean("WIFI", "CONNECTWIFI", fallback=False),
-            wait_time=cp.getint("WIFI", "WAITTIME", fallback=5),
+            connect_wifi=cp.getboolean("WIFI", "CONNECT_WIFI", fallback=False),
+            wait_time=cp.getint("WIFI", "WAIT_TIME", fallback=5),
         ),
         scan=ScanConfig(
-            callback_port=cp.getint("SCAN", "CALLBACKPORT", fallback=22),
+            callback_port=cp.getint("SCAN", "CALLBACK_PORT", fallback=22),
             quick=cp.getboolean("SCAN", "QUICK", fallback=True),
             portquiz=cp.getboolean("SCAN", "PORTQUIZ", fallback=True),
             traceroute=cp.getboolean("SCAN", "TRACEROUTE", fallback=True),
-            common_ports=cp.get("SCAN", "COMMONPORTS", fallback="22,80,443").split(","),
-            quick_limit=cp.getint("SCAN", "QUICKLIMIT", fallback=3),
-            quick_limit_aggressive=cp.getint("SCAN", "QUICKLIMITAGGRESSIVE", fallback=100),
-            port_scan_threads=cp.getint("SCAN", "PORTSCANTHREADS", fallback=1),
-            threads_aggressive=cp.getint("SCAN", "THREADSAGGRESSIVE", fallback=400),
+            common_ports=cp.get("SCAN", "COMMON_PORTS", fallback="22,80,443").split(","),
+            quick_limit=cp.getint("SCAN", "QUICK_LIMIT", fallback=3),
+            quick_limit_aggressive=cp.getint("SCAN", "QUICK_LIMIT_AGGRESSIVE", fallback=100),
+            port_scan_threads=cp.getint("SCAN", "PORT_SCAN_THREADS", fallback=1),
+            threads_aggressive=cp.getint("SCAN", "THREADS_AGGRESSIVE", fallback=400),
+            dns_resolver=cp.get("SCAN", "DNS_RESOLVER", fallback="8.8.8.8"),
         ),
         tunnel=TunnelConfig(
-            check_existing=cp.getboolean("TUNNEL", "CHECKEXISTING", fallback=True),
-            faketcp=cp.getboolean("TUNNEL", "FAKETCP", fallback=True),
+            check_existing=cp.getboolean("TUNNEL", "CHECK_EXISTING", fallback=True),
+            faketcp=cp.getboolean("TUNNEL", "FAKE_TCP", fallback=True),
             icmp=cp.getboolean("TUNNEL", "ICMP", fallback=True),
             tcp=cp.getboolean("TUNNEL", "TCP", fallback=True),
             udp=cp.getboolean("TUNNEL", "UDP", fallback=True),
             dns=cp.getboolean("TUNNEL", "DNS", fallback=True),
-            wait_time=cp.getint("TUNNEL", "WAITTIME", fallback=10),
+            wait_time=cp.getint("TUNNEL", "WAIT_TIME", fallback=10),
             password=cp.get("TUNNEL", "PASSWORD", fallback="passwd"),
-            sshkey=cp.get("TUNNEL", "SSHKEY", fallback="/opt/breakout/keys/id_rsa"),
-            sshuser=cp.get("TUNNEL", "SSHUSER", fallback="tunnel"),
+            sshkey=cp.get("TUNNEL", "SSH_KEY", fallback="/opt/breakout/keys/id_rsa"),
+            sshuser=cp.get("TUNNEL", "SSH_USER", fallback="tunnel"),
+            force_new_tunnel=cp.getboolean("TUNNEL", "FORCE_NEW_TUNNEL", fallback=False),
         ),
     )
     return _config

@@ -89,8 +89,8 @@ function addUser {
 function setupCnCUser {
     # Check if a config already exists and has a username
     CONFIG_PATH="/opt/breakout/configs/config.ini"
-    if [ -f "$CONFIG_PATH" ] && grep -q "^SSHUSER" "$CONFIG_PATH" 2>/dev/null; then
-        username=$(grep "^SSHUSER" "$CONFIG_PATH" | cut -d'=' -f2 | tr -d ' ')
+    if [ -f "$CONFIG_PATH" ] && grep -q "^SSH_USER" "$CONFIG_PATH" 2>/dev/null; then
+        username=$(grep "^SSH_USER" "$CONFIG_PATH" | cut -d'=' -f2 | tr -d ' ')
         [ "$VERBOSE" -eq 1 ] && echo -e "${PLUS} Using existing username ${username} from config.ini${NORMAL}"
     else
         # We use a unique username for this dropsbox based on its hostname and a random id
@@ -166,13 +166,13 @@ function setupCnCUser {
     fi
 
     if [ -f "$CONFIG_PATH" ]; then
-        [ "$VERBOSE" -eq 1 ] && echo -e "${PLUS} Updating ${CONFIG_PATH} with new SSHUSER${NORMAL}"
-        sed -i.bak "s/^SSHUSER.*/SSHUSER = ${username}/" "$CONFIG_PATH"
+        [ "$VERBOSE" -eq 1 ] && echo -e "${PLUS} Updating ${CONFIG_PATH} with new SSH_USER${NORMAL}"
+        sed -i.bak "s/^SSH_USER.*/SSH_USER = ${username}/" "$CONFIG_PATH"
         rm -f "${CONFIG_PATH}.bak"
     else
         [ "$VERBOSE" -eq 1 ] && echo -e "${EXCL} Auto-update failed: Make sure to update your config.ini${NORMAL}"
-        echo "    SSHKEY = /opt/breakout/keys/id_rsa"
-        echo "    SSHUSER = ${username}"
+        echo "    SSH_KEY = /opt/breakout/keys/id_rsa"
+        echo "    SSH_USER = ${username}"
     fi
 }
 
