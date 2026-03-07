@@ -102,6 +102,7 @@ def validate_args(
     # Resolve sshuser and sshkey
     sshuser: str = args.user if args.user is not None else config.tunnel.sshuser
     sshkey: str = args.key if args.key is not None else config.tunnel.sshkey
+    host_ssh_key = os.environ.get("HOST_SSH_KEY")
 
     if args.tunnel:
         run_setup = False
@@ -111,6 +112,8 @@ def validate_args(
         elif callback_ip:
             log.info(f"Verifying remote tunnel account {sshuser} on {callback_ip}...")
             ssh_args = ["ssh", "-o", "StrictHostKeyChecking=no", "-o", "PasswordAuthentication=no"]
+            if host_ssh_key:
+                ssh_args.extend(["-i", host_ssh_key])
             if not sys.stdout.isatty():
                 ssh_args.extend(["-o", "BatchMode=yes"])
             ssh_args.extend([callback_ip, f"id {sshuser}"])
@@ -147,6 +150,49 @@ def validate_args(
             else:
                 log.error(f"SSH key missing or account check failed, and no callback IP provided to auto-setup!")
                 sys.exit(1)
+
+        # Check if the remote server has breakout server scripts installed
+        if callback_ip:
+            install_url = "https://raw.githubusercontent.com/robinlennox/breakout/master/setup/install_server.sh"
+            ssh_base = ["ssh", "-o", "StrictHostKeyChecking=no", "-o", "PasswordAuthentication=no"]
+            if host_ssh_key:
+                ssh_base.extend(["-i", host_ssh_key])
+            ssh_check = ssh_base + ["-o", "ConnectTimeout=5", callback_ip, "test -f /opt/breakout/breakout_tunnels.sh"]
+            try:
+                res = subprocess.run(ssh_check, capture_output=True, text=True, timeout=10)
+                if res.returncode != 0:
+                    log.warning(f"Breakout server scripts not found on {callback_ip} — installing automatically")
+                    install_cmd = ssh_base + [callback_ip, f"curl -sL {install_url} | bash"]
+                    try:
+                        install_res = subprocess.run(install_cmd, capture_output=True, text=True, timeout=300)
+                        if install_res.returncode != 0:
+                            log.error(f"Failed to connect to {callback_ip} for server install")
+                            log.error(f"Run manually on the server: curl -sL {install_url} | bash")
+                            sys.exit(1)
+                        log.info("Installed: udp2raw, kcptun_server, iodine, breakout server scripts")
+                        log.warning(f"Server {callback_ip} is rebooting to apply changes — waiting for it to come back...")
+                        # Wait for server to come back online after reboot
+                        time.sleep(15)  # Give it time to start rebooting
+                        for attempt in range(18):  # Try for up to 3 minutes
+                            ping_cmd = ssh_base + ["-o", "ConnectTimeout=5", callback_ip, "echo ok"]
+                            try:
+                                ping_res = subprocess.run(ping_cmd, capture_output=True, text=True, timeout=10)
+                                if ping_res.returncode == 0:
+                                    log.info(f"Server {callback_ip} is back online")
+                                    break
+                            except Exception:
+                                pass
+                            log.info(f"Waiting for server to reboot... ({(attempt + 1) * 10}s)")
+                            time.sleep(10)
+                        else:
+                            log.error(f"Server {callback_ip} did not come back after 3 minutes — check manually")
+                    except subprocess.CalledProcessError:
+                        log.error(f"Server install failed. Run manually on the server:")
+                        log.error(f"  curl -sL {install_url} | bash")
+                elif args.verbose:
+                    log.info(f"Breakout server scripts verified on {callback_ip}")
+            except Exception as e:
+                log.debug(f"Server check skipped: {e}")
 
     # Always re-read config for SSHUSER in case it was auto-provisioned
     # or updated from a previous run

@@ -55,7 +55,7 @@ RUN mkdir -p logs configs \
 # Configure SSH daemon and breakout
 RUN echo 'breakout:passwd' | chpasswd \
     && sed -i 's/^#*PermitRootLogin.*/PermitRootLogin yes/' /etc/ssh/sshd_config \
-    && printf "%b\n" '#!/bin/bash\nmkdir -p /run/sshd\nssh-keygen -A >/dev/null 2>&1\n/usr/sbin/sshd -D -e -p 2222 > /var/log/sshd.log 2>&1 &\nexec python3 breakout.py "$@"' > docker-entrypoint.sh \
+    && printf "%b\n" '#!/bin/bash\nmkdir -p /run/sshd\nssh-keygen -A >/dev/null 2>&1\n\n# Sync breakout authorized_keys from volume-mounted keys\nif [ -f /opt/breakout/keys/id_rsa.pub ]; then\n    mkdir -p /home/breakout/.ssh\n    cp /opt/breakout/keys/id_rsa.pub /home/breakout/.ssh/authorized_keys\n    chown -R breakout:breakout /home/breakout/.ssh\n    chmod 700 /home/breakout/.ssh\n    chmod 600 /home/breakout/.ssh/authorized_keys\nfi\n\n/usr/sbin/sshd -D -e -p 2222 > /var/log/sshd.log 2>&1 &\nexec python3 breakout.py "$@"' > docker-entrypoint.sh \
     && chmod +x docker-entrypoint.sh
 
 ENTRYPOINT ["/opt/breakout/docker-entrypoint.sh"]
