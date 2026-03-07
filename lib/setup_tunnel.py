@@ -30,8 +30,11 @@ def is_port_open(port: int | str, ip: str) -> bool:
         return False
 
 
-def port_knock(port: int | str, ip: str, hits: int = 15) -> None:
+def port_knock(port: int | str, ip: str, hits: Optional[int] = None) -> None:
     """Send *hits* TCP SYN packets to *ip*:*port* as fast as possible to trigger NAT knock rules."""
+    if hits is None:
+        from lib.utils import get_config
+        hits = get_config().tunnel.knock_hits
     log.debug(f"Sending {hits} TCP SYN packets to {ip}:{port} for port knocking...")
     try:
         # Instead of waiting for a response with sr1, we use send() for fire-and-forget

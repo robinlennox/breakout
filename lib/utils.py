@@ -32,7 +32,7 @@ UDP2RAW_PORTS = {
     "faketcp": {"tunnel": 4001, "listen": 8856, "local": 4445},
     "udp": {"tunnel": 4002, "listen": 8857, "local": 4446},
 }
-DEFAULT_DNS_RESOLVER: str = "8.8.8.8"  # fallback only; prefer config.scan.dns_resolver
+
 
 # Known valid config keys per section
 _VALID_KEYS = {
@@ -46,6 +46,7 @@ _VALID_KEYS = {
     "TUNNEL": {
         "check_existing", "fake_tcp", "icmp", "tcp", "udp", "dns",
         "wait_time", "password", "ssh_key", "ssh_user", "force_new_tunnel",
+        "knock_hits",
     },
 }
 
@@ -84,6 +85,7 @@ class TunnelConfig:
     sshkey: str = "/opt/breakout/keys/id_rsa"
     sshuser: str = "tunnel"
     force_new_tunnel: bool = False
+    knock_hits: int = 200
 
 @dataclass
 class BreakoutConfig:
@@ -148,6 +150,7 @@ def get_config() -> BreakoutConfig:
             sshkey=cp.get("TUNNEL", "SSH_KEY", fallback="/opt/breakout/keys/id_rsa"),
             sshuser=cp.get("TUNNEL", "SSH_USER", fallback="tunnel"),
             force_new_tunnel=cp.getboolean("TUNNEL", "FORCE_NEW_TUNNEL", fallback=False),
+            knock_hits=cp.getint("TUNNEL", "KNOCK_HITS", fallback=200),
         ),
     )
     return _config

@@ -6,7 +6,7 @@ from typing import Optional
 
 from netaddr import IPAddress
 
-from lib.utils import DEFAULT_DNS_RESOLVER
+from lib.utils import get_config
 
 
 def is_public_ip(ip_addr: str) -> bool:
@@ -21,9 +21,11 @@ def is_public_ip(ip_addr: str) -> bool:
     )
 
 
-def get_ip(target: str = DEFAULT_DNS_RESOLVER) -> Optional[str]:
+def get_ip(target: Optional[str] = None) -> Optional[str]:
     """Return the local IP address used to reach the internet.
     """
+    if target is None:
+        target = get_config().scan.dns_resolver
     s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     try:
         s.connect((target, 80))

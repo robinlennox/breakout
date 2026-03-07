@@ -97,7 +97,7 @@ def callback_tcp(
 
                 # SSH not open — send port knock then check again
                 log.info(f"Port {attempt_port}: SSH not open, sending port knock...")
-                port_knock(attempt_port, callback_ip)
+                port_knock(attempt_port, callback_ip, hits=config.tunnel.knock_hits)
                 if check_tunnel(callback_ip, attempt_port):
                     log.warning(f"SSH opened successfully using PORT KNOCK on port {attempt_port}")
                     success_message(callback_ip, attempt_port, sshuser, sshkey)
