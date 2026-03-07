@@ -30,6 +30,24 @@ def is_port_open(port: int | str, ip: str) -> bool:
         return False
 
 
+def port_knock(port: int | str, ip: str, hits: int = 15) -> None:
+    """Send *hits* TCP SYN packets to *ip*:*port* as fast as possible to trigger NAT knock rules."""
+    log.debug(f"Sending {hits} TCP SYN packets to {ip}:{port} for port knocking...")
+    try:
+        # Instead of waiting for a response with sr1, we use send() for fire-and-forget
+        from scapy.all import send
+        pkt = IP(dst=ip) / TCP(dport=int(port), flags="S")
+        
+        # Send packets rapidly
+        send(pkt, count=hits, verbose=False)
+        log.debug(f"Knock complete for {ip}:{port}.")
+        
+        # Give the iptables rule a tiny moment to apply
+        time.sleep(1)
+    except Exception as exc:
+        log.warning(f"port_knock failed: {exc}")
+
+
 def udp2raw_tunnel_attempt(
     callback_ip: str,
     tunnel_ip: str,

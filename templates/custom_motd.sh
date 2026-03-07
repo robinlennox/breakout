@@ -28,16 +28,16 @@ fi
 
 echo "
 
-  [--|->] b r e a k o u t
-  # Coded By Robin Lennox
+[--|->] b r e a k o u t
+# Coded By Robin Lennox
 
-  [System]   ${sysinfo}
-  [Space]    ${used} used, ${avail} free
-  [Time]     $(date)
-  [Tunnel]   ${tunneltype} - Auth IP: ${sshIP:-None}
-  [Network]  $(echo "${ip}" | xargs)
-  [DNS]      $(echo "${dnsserver}" | xargs)
-  [WiFi]     ${currentSSID:-None} (GW: ${gatewaywifi})
+[System]   ${sysinfo}
+[Space]    ${used} used, ${avail} free
+[Time]     $(date)
+[Tunnel]   ${tunneltype} - Auth IP: ${sshIP:-None}
+[Network]  $(echo "${ip}" | xargs)
+[DNS]      $(echo "${dnsserver}" | xargs)
+[WiFi]     ${currentSSID:-None} (GW: ${gatewaywifi})
 " > ${1}
 
 exit 0

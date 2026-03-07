@@ -1,7 +1,5 @@
 # Breakout
 
-![alt tag](https://github.com/robinlennox/breakout/blob/master/images/Breakout_logo.png)
-
 ![GPLv3 License](https://img.shields.io/badge/License-GPLv3-red.svg) [![Twitter Follow](https://img.shields.io/twitter/follow/robberbear.svg?style=social&label=@robberbear)](https://twitter.com/robberbear)
 
 Breakout automatically gets a device access to the internet on a restricted network by finding open firewall ports and establishing a reverse tunnel via TCP, fake-TCP, UDP, or ICMP.
@@ -176,30 +174,7 @@ Automatically scans for and connects to open WiFi networks. Configure SSIDs to i
 
 ## Configuration
 
-Edit `configs/config.ini` to customise behaviour:
-
-```ini
-[DEFAULT]
-SHOWBANNER = True
-
-[SCAN]
-CALLBACKPORT = 22
-QUICK = True
-COMMONPORTS = 22,23,21,3389,53,123,80,443,5901,8080,8443
-
-[TUNNEL]
-TCP = True
-FAKETCP = True
-UDP = True
-ICMP = True
-DNS = True
-```
-
-The base directory defaults to `/opt/breakout` but can be overridden:
-
-```bash
-export BREAKOUT_DIR=/path/to/breakout
-```
+Edit `configs/config.ini` to customise behaviour
 
 ## Project Structure
 

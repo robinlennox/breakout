@@ -13,7 +13,7 @@ from lib.autotunnel import CHECK_SSH_LOC, setup_auto_tunnel, current_ssh_tunnel,
 from lib.network import check_interfaces, setup_gateways, TUNNEL_LOG
 from lib.port_check import check_port, portquiz_scan, traceroute_port_check, scan_results
 from lib.protocol_check import check_icmp, check_dns
-from lib.setup_tunnel import is_port_open, check_tunnel, udp2raw_tunnel, dns_tunnel, kill_iodine
+from lib.setup_tunnel import is_port_open, check_tunnel, udp2raw_tunnel, dns_tunnel, kill_iodine, port_knock
 from lib.utils import (
     BreakoutConfig, SOCKS_PROXY_PORT, IODINE_TUNNEL_IP, IODINE_TUNNEL_PORT,
     DNS_INTERFACE, UDP2RAW_PORTS,
@@ -86,23 +86,24 @@ def callback_tcp(
         log.debug("Attempting to create TCP tunnel.")
         if config.tunnel.tcp:
             for attempt_port in callback_port:
-                stop_count = 100
                 if verbose:
                     log.warning(f"Calling back to IP {callback_ip} on port {attempt_port}")
-                for count in range(stop_count):
-                    if is_port_open(attempt_port, callback_ip):
-                        if check_tunnel(callback_ip, attempt_port):
-                            log.info("SSH is Open")
-                            success_message(callback_ip, attempt_port, sshuser, sshkey)
-                            return callback_ip, attempt_port, "Open Port", True
-                        else:
-                            log.error(f"Port {attempt_port} open on IP {callback_ip} but unable to connect via SSH")
-                            break
-                    else:
-                        if verbose:
-                            log.debug(f"Waiting for port {attempt_port} to be open on IP {callback_ip}")
-                        if count + 1 == stop_count:
-                            log.error(f"Port {attempt_port} not open on IP {callback_ip} after {stop_count} attempts")
+
+                # Try SSH directly first (port may already be open)
+                if check_tunnel(callback_ip, attempt_port):
+                    log.info("SSH is Open")
+                    success_message(callback_ip, attempt_port, sshuser, sshkey)
+                    return callback_ip, attempt_port, "Open Port", True
+
+                # SSH not open — send port knock then check again
+                log.info(f"Port {attempt_port}: SSH not open, sending port knock...")
+                port_knock(attempt_port, callback_ip)
+                if check_tunnel(callback_ip, attempt_port):
+                    log.warning(f"SSH opened successfully using PORT KNOCK on port {attempt_port}")
+                    success_message(callback_ip, attempt_port, sshuser, sshkey)
+                    return callback_ip, attempt_port, "Knocked Port", True
+                else:
+                    log.error(f"Port {attempt_port}: SSH did not open even after port knock")
         elif verbose:
             log.info("Config: Skipping TCP tunnel")
     else:
@@ -274,6 +275,7 @@ def callback_dns(
                     log.error(
                         f"No DNS records found for {nameserver} — "
                         f"create an A record and NS delegation before using DNS tunneling"
+                        f"check the domain is not set to t1.example.com on the server"
                     )
                     return tunnel_ip, tunnel_port, None, False
         if verbose and ns_result.stdout.strip():

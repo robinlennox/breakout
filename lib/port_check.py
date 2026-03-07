@@ -24,7 +24,7 @@ G, Y, B, R, W = colour()
 
 
 # ---------------------------------------------------------------------------
-# Scan results — replaces the old global mutable lists
+# Scan results
 # ---------------------------------------------------------------------------
 @dataclass
 class ScanResults:
@@ -118,8 +118,12 @@ def check_port(aggressive: bool, config: "BreakoutConfig", scan_type: Callable, 
     except Exception:
         pass
 
-    if not scan_results.open_ports and aggressive:
-        log.warning("Running Aggressive Scan, no common ports are open")
+    if aggressive:
+        if not scan_results.open_ports:
+            log.warning("Running Aggressive Scan, no common ports are open")
+        else:
+            log.warning("Running Aggressive Scan to find all possible open ports and trigger knocks")
+            
         log.debug("Running full port check. This may take awhile, please wait.....")
         port_list = [p for p in range(1, 65534) if str(p) not in common_ports]
         random.shuffle(port_list)

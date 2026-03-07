@@ -134,7 +134,7 @@ def setup_gateways(
 
 def check_interfaces(current_ssid: str, verbose: bool) -> Tuple[bool, str, bool]:
     """Return (ethernet_up, ethernet_interface, wireless_up)."""
-    ethernet_up = True
+    ethernet_up = False
     wireless_up = False
     ethernet_interface = ""
 
