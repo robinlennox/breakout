@@ -75,7 +75,7 @@ function main {
 
     printf "${RED}"
     echo '                        '
-    echo '[--|->] b r e a k o u t'
+    echo '[--|->) b r e a k o u t'
     printf "${YELLOW}"
     echo '# Coded By Robin Lennox      ....is now installed!'
     printf "${NORMAL}"

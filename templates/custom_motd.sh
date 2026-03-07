@@ -28,7 +28,7 @@ fi
 
 echo "
 
-[--|->] b r e a k o u t
+[--|->) b r e a k o u t
 # Coded By Robin Lennox
 
 [System]   ${sysinfo}
