@@ -23,8 +23,6 @@ def is_public_ip(ip_addr: str) -> bool:
 
 def get_ip(target: str = DEFAULT_DNS_RESOLVER) -> Optional[str]:
     """Return the local IP address used to reach the internet.
-
-    Fix #6: uses configurable target instead of hardcoded 8.8.8.8.
     """
     s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     try:

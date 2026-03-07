@@ -24,7 +24,7 @@ log = logging.getLogger("breakout")
 # ---------------------------------------------------------------------------
 @dataclass
 class ScanResults:
-    """Accumulates port scan findings. Thread-safe via lock (#5)."""
+    """Accumulates port scan findings. Thread-safe via lock."""
 
     open_ports: List[str] = field(default_factory=list)
     possible_ports: List[str] = field(default_factory=list)

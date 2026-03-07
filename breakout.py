@@ -286,6 +286,14 @@ def main() -> int:
     if aggressive:
         log.debug("Aggressive is enabled")
 
+    # Verify sshd is running before attempting tunnels
+    sshd_check = subprocess.run(
+        ["ss", "-nlpt"], capture_output=True, text=True, check=False,
+    )
+    if 'sshd"' not in sshd_check.stdout:
+        log.critical("sshd is not running — reverse tunnels need a local SSH daemon. Start sshd first.")
+        return 1
+
     # Check for open ports and tunnel
     success = initialise_tunnel(
         aggressive, callback_ip, config, current_ssid,
