@@ -162,7 +162,7 @@ function setupCnCUser {
     if [ ! -f "$CONFIG_PATH" ]; then
         [ "$VERBOSE" -eq 1 ] && echo -e "${EXCL} config.ini not found. Downloading default config...${NORMAL}"
         mkdir -p "$(dirname "$CONFIG_PATH")"
-        wget -q https://raw.githubusercontent.com/robinlennox/breakout/master/configs/config.ini -O "$CONFIG_PATH"
+        wget -q https://raw.githubusercontent.com/robinlennox/breakout/master/lib/config.ini -O "$CONFIG_PATH"
     fi
 
     if [ -f "$CONFIG_PATH" ]; then
