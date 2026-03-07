@@ -1,4 +1,18 @@
+# Python bytecode
+__pycache__/
 *.pyc
-_ignore/*
+*.pyo
+
+# Breakout runtime files
 checkSSH.sh
-logs/*
+check_ssh.sh
+logs/
+_ignore/
+
+# SSH keys (never commit)
+*.pem
+id_rsa
+id_rsa.pub
+
+# OS
+.DS_Store
