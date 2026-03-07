@@ -33,10 +33,8 @@ pip install -r requirements.txt
 |---|---|
 | `netaddr` | IP address validation |
 | `netifaces` | Network interface enumeration |
-| `pexpect` | SSH tunnel verification |
 | `requests` | Port scanning via portquiz.net |
 | `scapy` | Raw packet crafting (ICMP, TCP SYN) |
-| `wifi` | WiFi network scanning |
 
 ### External Tools (for non-TCP tunnels)
 
@@ -87,7 +85,7 @@ sudo bash breakout/setup/install_server.sh
 
 1. **Installs dependencies** — `git`, `build-essential`, `libz-dev`
 2. **Configures SSH** — enables `Port 22` and `ListenAddress 0.0.0.0` in `sshd_config`
-3. **Disables ICMP echo** — For use by udp2raw-tunnel
+3. **Disables ICMP echo** — prevents the kernel from replying to pings so that udp2raw can use ICMP packets exclusively for tunneling (without this, the kernel's replies interfere with the tunnel)
 4. **Installs tunnel tools**:
    - [udp2raw](https://github.com/wangyu-/udp2raw-tunnel) — tunnels UDP/ICMP/fakeTCP traffic as raw packets
    - [kcptun](https://github.com/iaineng/kcptun) — accelerates tunnel connections with KCP protocol
@@ -158,11 +156,15 @@ curl --proxy socks5h://localhost:8123 https://ipinfo.io
 |---|---|
 | `-a, --aggressive` | Scan all 65k ports (slow but thorough) |
 | `-c, --callback IP` | Callback server IP address |
+| `-k, --key PATH` | Path to SSH private key (default: from `config.ini`) |
 | `-n, --nameserver` | Nameserver domain for DNS tunnel (iodine) |
 | `-p, --password PWD` | Password for tunnel (default: `passwd`) |
 | `-r, --recon` | Enable network reconnaissance |
 | `-t, --tunnel` | Enable persistent auto-tunneling |
+| `-u, --user USER` | Remote SSH user for auto-tunnel (default: from `config.ini`) |
 | `-v, --verbose` | Verbose output |
+| `--dry-run` | Show what would be done without creating tunnels |
+| `--status` | Show current tunnel status and exit |
 
 ### WiFi Auto-Connect
 
@@ -174,7 +176,28 @@ Automatically scans for and connects to open WiFi networks. Configure SSIDs to i
 
 ## Configuration
 
-Edit `configs/config.ini` to customise behaviour
+Edit `configs/config.ini` to customise behaviour:
+
+| Section | Key | Default | Description |
+|---|---|---|---|
+| `DEFAULT` | `SHOWBANNER` | `True` | Show ASCII banner on startup |
+| `WIFI` | `CONNECTWIFI` | `False` | Enable WiFi auto-connect |
+| `WIFI` | `WAITTIME` | `5` | Seconds to wait after DHCP |
+| `SCAN` | `CALLBACKPORT` | `22` | Default callback port |
+| `SCAN` | `QUICK` | `True` | Quick scan before full scan |
+| `SCAN` | `PORTQUIZ` | `True` | Use portquiz.net for scanning |
+| `SCAN` | `TRACEROUTE` | `True` | Use traceroute for scanning |
+| `SCAN` | `COMMONPORTS` | `22,80,443,...` | Ports to scan first |
+| `TUNNEL` | `TCP` | `True` | Enable TCP tunnels |
+| `TUNNEL` | `FAKETCP` | `True` | Enable fake-TCP tunnels |
+| `TUNNEL` | `ICMP` | `True` | Enable ICMP tunnels |
+| `TUNNEL` | `UDP` | `True` | Enable UDP tunnels |
+| `TUNNEL` | `DNS` | `True` | Enable DNS tunnels (iodine) |
+| `TUNNEL` | `PASSWORD` | `passwd` | Tunnel password |
+| `TUNNEL` | `SSHKEY` | `/opt/breakout/keys/id_rsa` | SSH private key path |
+| `TUNNEL` | `SSHUSER` | `tunnel` | Remote SSH username |
+
+The `BREAKOUT_DIR` environment variable overrides the base directory (default: `/opt/breakout`).
 
 ## Project Structure
 
@@ -193,12 +216,10 @@ breakout/
 │   ├── network.py         # Network routing & interfaces
 │   ├── autotunnel.py      # SSH tunnel generation
 │   ├── tunnel.py          # Tunnel orchestration core
-│   ├── create_tunnel.py   # Legacy orchestration re-export
 │   ├── setup_tunnel.py    # Tunnel connection helpers
 │   ├── port_check.py      # Port scanning
 │   ├── protocol_check.py  # ICMP/DNS checks
 │   ├── ip_check.py        # IP validation
-│   ├── check_internet.py  # Connectivity check
 │   └── script_management.py # Process management
 ├── server/
 │   ├── breakout_tunnels.sh # List active tunnels

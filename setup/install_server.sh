@@ -42,7 +42,7 @@ function main {
     sed -Ei 's/#ListenAddress 0.0.0.0/ListenAddress 0.0.0.0/' /etc/ssh/sshd_config
     cp /etc/ssh/sshd_config /etc/ssh/sshd_config_orig
 
-    echo "0" | tee /proc/sys/net/ipv4/icmp_echo_ignore_all
+    echo "1" | tee /proc/sys/net/ipv4/icmp_echo_ignore_all
     wget https://github.com/wangyu-/udp2raw/releases/download/20230206.0/udp2raw_binaries.tar.gz -P /tmp && \
     tar -xvf /tmp/udp2raw_binaries.tar.gz -C /usr/local/bin/ udp2raw_amd64 && \
     mv /usr/local/bin/udp2raw_amd64 /usr/local/bin/udp2raw && \

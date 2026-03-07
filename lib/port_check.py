@@ -13,14 +13,10 @@ import requests
 from scapy.all import IP, TCP, sr1
 
 from lib.ip_check import is_public_ip
-from lib.layout import colour
 
 logging.getLogger("scapy.runtime").setLevel(logging.ERROR)
 
 log = logging.getLogger("breakout")
-
-# Import Colour Scheme (still used for some direct print output)
-G, Y, B, R, W = colour()
 
 
 # ---------------------------------------------------------------------------

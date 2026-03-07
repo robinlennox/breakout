@@ -274,8 +274,8 @@ def callback_dns(
                 if not a_result.stdout.strip():
                     log.error(
                         f"No DNS records found for {nameserver} — "
-                        f"create an A record and NS delegation before using DNS tunneling"
-                        f"check the domain is not set to t1.example.com on the server"
+                        f"create an A record and NS delegation before using DNS tunneling. "
+                        f"Check the domain is not set to t1.example.com on the server"
                     )
                     return tunnel_ip, tunnel_port, None, False
         if verbose and ns_result.stdout.strip():

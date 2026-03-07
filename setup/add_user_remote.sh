@@ -33,5 +33,3 @@ echo "Match User ${username}
 # Start the SSH service
 update-rc.d ssh enable > /dev/null
 service ssh restart > /dev/null
-
-#sudo ssh -R 9000:localhost:22 ${username}@139.59.228.224 -i /home/${username}/.ssh/id_rsa

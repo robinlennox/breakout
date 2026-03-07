@@ -12,12 +12,12 @@ function udpTunnel {
 	
 	checkProcess=$(ps aux | grep "udp2raw" | grep ${TUNNEL_PORT} | grep -Ev 'color=auto' | wc -l)
 	if [[ ${checkProcess} < 1 ]]; then
-		udp2raw -s -l0.0.0.0:${LOCAL_PORT} -r 127.0.0.1:${TUNNEL_PORT} -k "${TUNNEL_PASSWORD}" --raw-mode ${TUNNEL_TYPE} -a & > /dev/null 2>&1
+		udp2raw -s -l0.0.0.0:${LOCAL_PORT} -r 127.0.0.1:${TUNNEL_PORT} -k "${TUNNEL_PASSWORD}" --raw-mode ${TUNNEL_TYPE} -a > /dev/null 2>&1 &
 	fi
 
 	checkProcess=$(ps aux | grep "kcptun" | grep ${TUNNEL_PORT} | grep -Ev 'color=auto' | wc -l)
 	if [[ ${checkProcess} < 1 ]]; then
-		kcptun_server -t "127.0.0.1:22" -l ":${TUNNEL_PORT}" -mode fast2 -mtu 1300 & > /dev/null 2>&1
+		kcptun_server -t "127.0.0.1:22" -l ":${TUNNEL_PORT}" -mode fast2 -mtu 1300 > /dev/null 2>&1 &
 	fi
 }
 

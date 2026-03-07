@@ -3,6 +3,7 @@
 
 import logging
 import os
+import shutil
 import subprocess
 import time
 from pathlib import Path
@@ -37,7 +38,6 @@ def attempt_wifi_connect(ssid_name: str, wireless_interface: str) -> bool:
     log.debug("Waiting for network to finish setting up")
 
     # Fix #13: try available DHCP clients
-    import shutil
     if shutil.which("dhclient"):
         subprocess.run(["dhclient", wireless_interface], check=False)
     elif shutil.which("dhcpcd"):
@@ -201,6 +201,8 @@ def create_wifi_blocklist() -> List[str]:
 
 def main() -> None:
     """Entry point for WiFi auto-connect."""
+    from lib.utils import setup_logging
+    setup_logging()
     check_running_state("connect_wifi.py")
 
     is_pi = os.path.isfile("/sys/class/leds/led1/trigger")
