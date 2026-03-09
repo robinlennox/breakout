@@ -80,6 +80,10 @@ def parse_args() -> argparse.Namespace:
         "--status", action="store_true",
         help="Show current tunnel status and exit",
     )
+    parser.add_argument(
+        "--auto-install", action="store_true",
+        help="Automatically install Breakout server scripts if missing on the remote server",
+    )
     return parser.parse_args()
 
 
@@ -164,37 +168,45 @@ def validate_args(
             ssh_check = ssh_base + ["-o", "ConnectTimeout=5", callback_ip, "test -f /opt/breakout/breakout_tunnels.sh"]
             try:
                 res = subprocess.run(ssh_check, capture_output=True, text=True, timeout=10)
-                if res.returncode != 0:
-                    log.warning(f"Breakout server scripts not found on {callback_ip} — installing automatically")
-                    install_cmd = ssh_base + [callback_ip, f"curl -sL {install_url} | bash"]
-                    try:
-                        install_res = subprocess.run(install_cmd, capture_output=True, text=True, timeout=300)
-                        if install_res.returncode != 0:
-                            log.error(f"Failed to connect to {callback_ip} for server install")
-                            log.error(f"Run manually on the server: curl -sL {install_url} | bash")
-                            sys.exit(1)
-                        log.info("Installed: udp2raw, kcptun_server, iodine, breakout server scripts")
-                        log.warning(f"Server {callback_ip} is rebooting to apply changes — waiting for it to come back...")
-                        # Wait for server to come back online after reboot
-                        time.sleep(15)  # Give it time to start rebooting
-                        for attempt in range(18):  # Try for up to 3 minutes
-                            ping_cmd = ssh_base + ["-o", "ConnectTimeout=5", callback_ip, "echo ok"]
-                            try:
-                                ping_res = subprocess.run(ping_cmd, capture_output=True, text=True, timeout=10)
-                                if ping_res.returncode == 0:
-                                    log.info(f"Server {callback_ip} is back online")
-                                    break
-                            except Exception:
-                                pass
-                            log.info(f"Waiting for server to reboot... ({(attempt + 1) * 10}s)")
-                            time.sleep(10)
-                        else:
-                            log.error(f"Server {callback_ip} did not come back after 3 minutes — check manually")
-                    except subprocess.CalledProcessError:
-                        log.error(f"Server install failed. Run manually on the server:")
-                        log.error(f"  curl -sL {install_url} | bash")
+                if res.returncode == 255:
+                    log.warning(f"Unable to verify the remote server setup on {callback_ip}. It may not respond or is unreachable.")
+                elif res.returncode != 0:
+                    if args.auto_install:
+                        log.warning(f"Breakout server scripts not found on {callback_ip} — installing automatically")
+                        install_cmd = ssh_base + [callback_ip, f"curl -sL {install_url} | bash"]
+                        try:
+                            install_res = subprocess.run(install_cmd, capture_output=True, text=True, timeout=300)
+                            if install_res.returncode != 0:
+                                log.error(f"Failed to connect to {callback_ip} for server install")
+                                log.error(f"Run manually on the server: curl -sL {install_url} | bash")
+                                sys.exit(1)
+                            log.info("Installed: udp2raw, kcptun_server, iodine, breakout server scripts")
+                            log.warning(f"Server {callback_ip} is rebooting to apply changes — waiting for it to come back...")
+                            # Wait for server to come back online after reboot
+                            time.sleep(15)  # Give it time to start rebooting
+                            for attempt in range(18):  # Try for up to 3 minutes
+                                ping_cmd = ssh_base + ["-o", "ConnectTimeout=5", callback_ip, "echo ok"]
+                                try:
+                                    ping_res = subprocess.run(ping_cmd, capture_output=True, text=True, timeout=10)
+                                    if ping_res.returncode == 0:
+                                        log.info(f"Server {callback_ip} is back online")
+                                        break
+                                except Exception:
+                                    pass
+                                log.info(f"Waiting for server to reboot... ({(attempt + 1) * 10}s)")
+                                time.sleep(10)
+                            else:
+                                log.error(f"Server {callback_ip} did not come back after 3 minutes — check manually")
+                        except subprocess.CalledProcessError:
+                            log.error(f"Server install failed. Run manually on the server:")
+                            log.error(f"  curl -sL {install_url} | bash")
+                    else:
+                        log.warning(f"Unable to verify the remote server setup on {callback_ip}. Target scripts may be missing.")
+                        log.warning(f"Use --auto-install to provision automatically or install manually: curl -sL {install_url} | bash")
                 elif args.verbose:
                     log.info(f"Breakout server scripts verified on {callback_ip}")
+            except subprocess.TimeoutExpired:
+                log.warning(f"Unable to verify the remote server setup on {callback_ip}. It may not respond as it cannot be reached.")
             except Exception as e:
                 log.debug(f"Server check skipped: {e}")
 
