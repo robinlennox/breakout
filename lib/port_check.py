@@ -89,6 +89,12 @@ def _multiprocess_scan(
         _check_count = 0
         _quit_scan = 0
 
+    # Scapy's sr1() relies on select(), which crashes if the file descriptor number is >= 1024.
+    # To prevent this, we cap the thread count for traceroute scans.
+    if scan_func.__name__ == "traceroute_port_check" and thread_count > 200:
+        log.debug("Capping traceroute scan threads to 200 to avoid file descriptor limits.")
+        thread_count = 200
+
     pool = ThreadPool(thread_count)
     pool.map(
         partial(scan_func, aggressive=aggressive, config=config, verbose=verbose),
