@@ -288,12 +288,17 @@ def callback_dns(
     if dns_tunnel(tunnel_password, nameserver, verbose):
         log.info("DNS tunnel established via iodine")
         # Verify SSH is reachable through the tunnel
-        if check_tunnel(tunnel_ip, tunnel_port):
-            success_message(tunnel_ip, tunnel_port, sshuser, sshkey)
-            return tunnel_ip, tunnel_port, "dns", True
-        else:
-            log.error("DNS tunnel up but SSH not reachable on tunnel interface")
-            kill_iodine()
+        log.info("Waiting for DNS routing to settle...")
+        for attempt in range(5):
+            time.sleep(3)
+            if check_tunnel(tunnel_ip, tunnel_port):
+                success_message(tunnel_ip, tunnel_port, sshuser, sshkey)
+                return tunnel_ip, tunnel_port, "dns", True
+            elif verbose:
+                log.debug(f"SSH unreachable on attempt {attempt+1}, retrying...")
+
+        log.error("DNS tunnel up but SSH not reachable on tunnel interface")
+        kill_iodine()
     else:
         log.error("DNS tunnel setup failed")
 

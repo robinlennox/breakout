@@ -31,6 +31,7 @@ function dnsTunnel {
 
 	checkProcess=$(ps aux | grep "iodined" | grep -Ev 'color=auto|grep' | wc -l)
 	if [[ ${checkProcess} -lt 1 ]]; then
+		for i in {0..5}; do ip link delete dns$i 2>/dev/null || true; done
 		iodined -f -P "${DNS_PASSWORD}" 10.0.0.1/24 "${DNS_DOMAIN}" & > /dev/null 2>&1
 	fi
 }

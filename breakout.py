@@ -165,6 +165,23 @@ def validate_args(
             ssh_base = ["ssh", "-o", "StrictHostKeyChecking=no", "-o", "PasswordAuthentication=no"]
             if host_ssh_key:
                 ssh_base.extend(["-i", host_ssh_key])
+                
+            def update_remote_config():
+                update_script = []
+                if nameserver:
+                    update_script.append(f"sed -i 's/.*DNS_DOMAIN=.*/DNS_DOMAIN=\\${{DNS_DOMAIN:-{nameserver}}}/' /opt/breakout/tunnel_server.sh")
+                if config.tunnel.dns_password:
+                    update_script.append(f"sed -i 's/.*DNS_PASSWORD=.*/DNS_PASSWORD=\\${{DNS_PASSWORD:-{config.tunnel.dns_password}}}/' /opt/breakout/tunnel_server.sh")
+                if config.tunnel.tunnel_password:
+                    update_script.append(f"sed -i 's/.*TUNNEL_PASSWORD=.*/TUNNEL_PASSWORD=\\${{TUNNEL_PASSWORD:-{config.tunnel.tunnel_password}}}/' /opt/breakout/tunnel_server.sh")
+                if update_script:
+                    update_script.append("pkill -9 iodined || true")
+                    update_script.append("pkill -9 udp2raw || true")
+                    update_script.append("pkill -9 kcptun_server || true")
+                    update_cmd = ssh_base + [callback_ip, " && ".join(update_script)]
+                    subprocess.run(update_cmd, capture_output=True)
+                    log.info("Remote tunnel_server.sh updated with current credentials.")
+                    
             ssh_check = ssh_base + ["-o", "ConnectTimeout=5", callback_ip, "test -f /opt/breakout/breakout_tunnels.sh"]
             try:
                 res = subprocess.run(ssh_check, capture_output=True, text=True, timeout=10)
@@ -190,6 +207,9 @@ def validate_args(
                                     ping_res = subprocess.run(ping_cmd, capture_output=True, text=True, timeout=10)
                                     if ping_res.returncode == 0:
                                         log.info(f"Server {callback_ip} is back online")
+                                        
+                                        update_remote_config()
+                                            
                                         break
                                 except Exception:
                                     pass
@@ -203,8 +223,11 @@ def validate_args(
                     else:
                         log.warning(f"Unable to verify the remote server setup on {callback_ip}. Target scripts may be missing.")
                         log.warning(f"Use --auto-install to provision automatically or install manually: curl -sL {install_url} | bash")
-                elif args.verbose:
-                    log.info(f"Breakout server scripts verified on {callback_ip}")
+                elif res.returncode == 0:
+                    if args.verbose:
+                        log.info(f"Breakout server scripts verified on {callback_ip}")
+                    if args.auto_install:
+                        update_remote_config()
             except subprocess.TimeoutExpired:
                 log.warning(f"Unable to verify the remote server setup on {callback_ip}. It may not respond as it cannot be reached.")
             except Exception as e:
